@@ -29,11 +29,12 @@
           class="sidebar__nav-item"
           :active-class="item.exact ? '' : 'is-active'"
           :exact-active-class="item.exact ? 'is-active' : ''"
+          v-tooltip.right="item.label"
           @click="emit('navigate')"
         >
           <span class="sidebar__nav-item-inner">
             <span class="nav-icon" v-html="item.icon" />
-            <span>{{ item.label }}</span>
+            <span class="nav-label">{{ item.label }}</span>
           </span>
 
           <span v-if="item.badge && item.badge > 0" class="nav-badge">
@@ -506,7 +507,8 @@ const visibleNavGroups = computed<NavGroup[]>(() =>
   .sidebar__section-label,
   .sidebar__user-info,
   .sidebar__chevron,
-  .sidebar__copyright {
+  .sidebar__copyright,
+  .nav-label {
     display: none;
   }
 
@@ -589,7 +591,8 @@ const visibleNavGroups = computed<NavGroup[]>(() =>
   .sidebar.is-open .sidebar__section-label,
   .sidebar.is-open .sidebar__user-info,
   .sidebar.is-open .sidebar__chevron,
-  .sidebar.is-open .sidebar__copyright {
+  .sidebar.is-open .sidebar__copyright,
+  .sidebar.is-open .nav-label {
     display: revert;
   }
 
@@ -661,7 +664,8 @@ const visibleNavGroups = computed<NavGroup[]>(() =>
   .sidebar__section-label,
   .sidebar__user-info,
   .sidebar__chevron,
-  .sidebar__copyright {
+  .sidebar__copyright,
+  .nav-label {
     display: revert;
   }
 

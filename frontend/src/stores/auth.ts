@@ -1,6 +1,5 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import { loginRequest } from '../api/auth'
 import type { AuthUser, LoginCredentials, UserRole } from '../types/auth'
 
 // ─── Auth Store ───────────────────────────────────────────────────────────────

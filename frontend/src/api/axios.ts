@@ -42,13 +42,26 @@ api.interceptors.response.use(
 // We read/clear the store by importing it inside a function, not at module level.
 // This is the standard pattern for Pinia + axios in Vue 3.
 
+// Lazy store access — deferred to avoid circular dependency at module init time.
+// We import the store only when the interceptor actually fires.
+let _authStore: ReturnType<typeof import('../stores/auth').useAuthStore> | null = null
+
+async function getAuthStore() {
+  if (!_authStore) {
+    const { useAuthStore } = await import('../stores/auth')
+    _authStore = useAuthStore()
+  }
+  return _authStore
+}
+
 function getTokenFromStore(): string | null {
-  // Dynamic import to avoid circular reference at module init time
   try {
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const { useAuthStore } = require('../stores/auth')
-    const store = useAuthStore()
-    return store.token
+    // Synchronous access — store must already be initialized by the time any request fires
+    // (Pinia is installed before the first navigation guard runs)
+    if (_authStore) return _authStore.token
+    // Kick off lazy init for next request; return null this time
+    getAuthStore()
+    return null
   } catch {
     return null
   }
@@ -56,11 +69,9 @@ function getTokenFromStore(): string | null {
 
 function clearAuthAndRedirect(): void {
   try {
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const { useAuthStore } = require('../stores/auth')
-    const store = useAuthStore()
-    store.logout()
-    // Router redirect — use window.location to avoid importing router here
+    if (_authStore) {
+      _authStore.logout()
+    }
     if (window.location.pathname !== '/login') {
       window.location.href = '/login'
     }
@@ -68,3 +79,6 @@ function clearAuthAndRedirect(): void {
     window.location.href = '/login'
   }
 }
+
+// Pre-warm the store reference as soon as the module loads
+getAuthStore().catch(() => {})

@@ -52,7 +52,7 @@
 </template>
 
 <script setup lang="ts">
-import KpiCard from '../components/base/KpiCard.vue'
+import KpiCard from '../../components/base/KpiCard.vue'
 // Real data comes in a later step when TanStack Query is wired up.
 // KPI values are hardcoded stubs for now.
 </script>
