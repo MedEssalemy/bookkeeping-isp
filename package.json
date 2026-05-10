@@ -5,7 +5,7 @@
   "main": "index.js",
   "scripts": {
     "build": "pnpm --filter frontend build",
-    "deploy": "pnpm --filter frontend build && pnpm --filter frontend exec wrangler deploy --config ../wrangler.jsonc",
+    "deploy": "pnpm --filter frontend build && pnpm --filter frontend exec wrangler deploy --cwd ..",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],
