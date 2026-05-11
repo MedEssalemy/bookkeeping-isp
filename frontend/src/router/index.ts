@@ -73,7 +73,7 @@ const router = createRouter({
           path: 'expenses',
           name: 'expenses',
           component: () => import('../views/expenses/ExpensesListView.vue'),
-          meta: { requiresAuth: true, title: 'Outside Expenses' },
+          meta: { requiresAuth: true, title: 'Expenses' },
         },
         {
           path: 'pl',

@@ -1,6 +1,7 @@
 import { createApp } from 'vue'
 import { createPinia } from 'pinia'
 import PrimeVue from 'primevue/config'
+import Tooltip from 'primevue/tooltip'
 import Aura from '@primeuix/themes/aura'
 import { VueQueryPlugin } from '@tanstack/vue-query'
 import App from './App.vue'
@@ -17,6 +18,7 @@ app.use(PrimeVue, {
     options: { darkModeSelector: false },
   },
 })
+app.directive('tooltip', Tooltip)
 app.use(VueQueryPlugin)
 
 app.mount('#app')

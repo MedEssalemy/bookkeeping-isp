@@ -29,7 +29,7 @@
           class="sidebar__nav-item"
           :active-class="item.exact ? '' : 'is-active'"
           :exact-active-class="item.exact ? 'is-active' : ''"
-          v-tooltip.right="item.label"
+          v-tooltip.right="{ value: item.label, disabled: !isShrunk }"
           @click="emit('navigate')"
         >
           <span class="sidebar__nav-item-inner">
@@ -102,8 +102,24 @@ function handleClickOutside(e: MouseEvent) {
   }
 }
 
-onMounted(() => document.addEventListener('mousedown', handleClickOutside))
-onUnmounted(() => document.removeEventListener('mousedown', handleClickOutside))
+// Sidebar is "shrunk" (rail) at viewport widths matching the rail media query.
+// Tooltips only need to appear in that state, since the full sidebar shows labels.
+const isShrunk = ref(false)
+let railQuery: MediaQueryList | null = null
+function updateShrunk(e: MediaQueryListEvent | MediaQueryList) {
+  isShrunk.value = e.matches
+}
+
+onMounted(() => {
+  document.addEventListener('mousedown', handleClickOutside)
+  railQuery = window.matchMedia('(max-width: 899px)')
+  updateShrunk(railQuery)
+  railQuery.addEventListener('change', updateShrunk)
+})
+onUnmounted(() => {
+  document.removeEventListener('mousedown', handleClickOutside)
+  railQuery?.removeEventListener('change', updateShrunk)
+})
 
 const userInitials = computed(() => {
   const name = auth.user?.full_name ?? ''
@@ -516,10 +532,15 @@ const visibleNavGroups = computed<NavGroup[]>(() =>
     padding: 12px 0;
     display: flex;
     justify-content: center;
+    align-items: center;
     border-bottom: 1px solid rgba(255, 255, 255, 0.06);
   }
 
-  .sidebar__brand-row { margin-bottom: 0; }
+  .sidebar__brand-row {
+    margin-bottom: 0;
+    justify-content: center;
+    width: 100%;
+  }
 
   .sidebar__favicon {
     width: 30px;
