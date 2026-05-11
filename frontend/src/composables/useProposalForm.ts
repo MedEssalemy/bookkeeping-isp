@@ -1,4 +1,4 @@
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, nextTick } from 'vue'
 import type {
   ProposalType,
   ProposalStatus,
@@ -222,6 +222,15 @@ export function useProposalForm() {
 
   const errors = ref<Record<string, string>>({})
 
+  // A row is "non-empty" if the user touched anything in it. Used to decide
+  // whether to drop it silently vs. flag a missing description.
+  function isStandardRowTouched(i: StandardLineItem): boolean {
+    return !!(i.description.trim() || i.job_code || i.qty !== null || i.rate !== 0)
+  }
+  function isMPRowTouched(i: MPLineItem): boolean {
+    return !!(i.services.trim() || i.hourly_rate !== null || i.hours_estimated !== 0)
+  }
+
   function validate(): boolean {
     const e: Record<string, string> = {}
 
@@ -231,12 +240,20 @@ export function useProposalForm() {
     if (type.value === 'Standard') {
       if (!clientName.value.trim()) e.clientName = 'Client Name is required'
       if (!address.value.trim()) e.address = 'Address is required'
-      const hasItem = standardItems.value.some((i) => i.description.trim())
-      if (!hasItem) e.lineItems = 'Add at least one line item'
+      const touched = standardItems.value.filter(isStandardRowTouched)
+      if (!touched.length) {
+        e.lineItems = 'Add at least one line item'
+      } else if (touched.some((i) => !i.description.trim())) {
+        e.lineItems = 'Every line item needs a description'
+      }
       if (email.value && !isValidEmail(email.value)) e.email = 'Invalid email'
     } else {
-      const hasItem = mpItems.value.some((i) => i.services.trim())
-      if (!hasItem) e.lineItems = 'Add at least one line item'
+      const touched = mpItems.value.filter(isMPRowTouched)
+      if (!touched.length) {
+        e.lineItems = 'Add at least one line item'
+      } else if (touched.some((i) => !i.services.trim())) {
+        e.lineItems = 'Every line item needs a services description'
+      }
     }
 
     if (taxRate.value < 0) e.taxRate = 'Tax Rate must be ≥ 0'
@@ -263,9 +280,9 @@ export function useProposalForm() {
     }
 
     if (type.value === 'Standard') {
-      // Drop empty rows (spec §4.4 / §4.8)
+      // Drop only fully-empty rows. Validation ensures touched rows have a description.
       const items = standardItems.value
-        .filter((i) => i.description.trim())
+        .filter(isStandardRowTouched)
         .map(({ id: _id, amount: _a, ...rest }) => rest)
       return {
         ...base,
@@ -285,7 +302,7 @@ export function useProposalForm() {
     }
 
     const items = mpItems.value
-      .filter((i) => i.services.trim())
+      .filter(isMPRowTouched)
       .map(({ id: _id, estimated_fee: _e, ...rest }) => rest)
     return {
       ...base,
@@ -361,11 +378,18 @@ export function useProposalForm() {
       if (!mpItems.value.length) mpItems.value = [newMPItem()]
     }
 
-    // Reset dirty after load
-    isDirty.value = false
+    // Reset dirty after load — wait for pending reactive effects to settle
+    void nextTick(() => { isDirty.value = false })
   }
 
-  // Mark dirty on any data change
+  // Mark dirty on any data change. Skip changes that originate from
+  // programmatic resets (loadProposal, auto-filled proposal number, etc.) by
+  // letting callers set isDirty=false in nextTick — those resets fire the watcher
+  // synchronously, but the nextTick clears the flag before the user sees it.
+  function markFromNumberAutofill() {
+    void nextTick(() => { isDirty.value = false })
+  }
+
   watch(
     [type, status, date, number,
       clientName, address, title, businessName, department, phone, email,
@@ -406,5 +430,6 @@ export function useProposalForm() {
     onDestinationSelected,
     onTaxRateLoaded, onTaxRateUserEdit, onTaxableToggle,
     validate, buildPayload, loadProposal,
+    markFromNumberAutofill,
   }
 }

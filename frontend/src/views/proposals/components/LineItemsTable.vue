@@ -71,7 +71,7 @@
               <span v-else>{{ fmt(item.rate) }}</span>
             </td>
             <!-- Amount (computed) -->
-            <td class="td--number line-items__computed">{{ fmt(item.amount) }}</td>
+            <td class="td--number line-items__computed">{{ fmt(computeAmount(item.qty, item.rate)) }}</td>
             <!-- Delete -->
             <td v-if="!readonly">
               <button
@@ -127,7 +127,7 @@
               <span v-else>{{ item.hours_estimated }}</span>
             </td>
             <!-- Estimated Fee (computed) -->
-            <td class="td--number line-items__computed">{{ fmt(item.estimated_fee) }}</td>
+            <td class="td--number line-items__computed">{{ fmt(computeEstimatedFee(item.hourly_rate, item.hours_estimated)) }}</td>
             <!-- Delete -->
             <td v-if="!readonly">
               <button
@@ -178,6 +178,16 @@ const emit = defineEmits<{
 
 function fmt(n: number) {
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(n)
+}
+
+function computeAmount(qty: number | null, rate: number): number {
+  if (qty === null || qty === undefined) return rate
+  return qty * rate
+}
+
+function computeEstimatedFee(hourlyRate: number | null, hours: number): number {
+  if (hourlyRate === null || hourlyRate === undefined) return hours
+  return hourlyRate * hours
 }
 
 function onEnter(idx: number) {

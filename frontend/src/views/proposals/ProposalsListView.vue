@@ -44,7 +44,7 @@
       <MultiSelect
         v-model="filters.status"
         :options="STATUS_OPTIONS"
-        placeholder="Status"
+        placeholder="All statuses"
         display="chip"
         class="proposals-list__filter-select"
       />
@@ -55,7 +55,7 @@
         :options="TYPE_OPTIONS"
         optionLabel="label"
         optionValue="value"
-        placeholder="Type"
+        placeholder="All types"
         showClear
         class="proposals-list__filter-select"
       />
@@ -66,6 +66,7 @@
         placeholder="From"
         dateFormat="mm/dd/yy"
         showIcon
+        :maxDate="filterDateTo ?? undefined"
         class="proposals-list__filter-date"
         @update:modelValue="onDateFromChange"
       />
@@ -76,23 +77,30 @@
         placeholder="To"
         dateFormat="mm/dd/yy"
         showIcon
+        :minDate="filterDateFrom ?? undefined"
         class="proposals-list__filter-date"
         @update:modelValue="onDateToChange"
       />
 
       <!-- Client / Project Location -->
-      <input
-        v-model="filters.client"
-        class="field__input proposals-list__filter-input"
-        type="text"
-        placeholder="Client / location…"
-      />
+      <div class="proposals-list__search-wrap proposals-list__search-wrap--client" :title="'Filter by client name or project location'">
+        <svg class="proposals-list__search-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+          <circle cx="12" cy="7" r="4"/>
+        </svg>
+        <input
+          v-model="filters.client"
+          class="field__input proposals-list__filter-input proposals-list__filter-input--with-icon"
+          type="text"
+          placeholder="Client or location…"
+        />
+      </div>
 
       <!-- Job Code multi-select -->
       <MultiSelect
         v-model="filters.job_code"
         :options="JOB_CODES"
-        placeholder="Job Code"
+        placeholder="All job codes"
         display="chip"
         :maxSelectedLabels="1"
         filter
@@ -100,12 +108,18 @@
       />
 
       <!-- Free-text search (Proposal #, Project Name) -->
-      <input
-        v-model="filters.q"
-        class="field__input proposals-list__filter-input"
-        type="text"
-        placeholder="Search number or project…"
-      />
+      <div class="proposals-list__search-wrap proposals-list__search-wrap--q" :title="'Search by proposal number or project name'">
+        <svg class="proposals-list__search-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="11" cy="11" r="7"/>
+          <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+        </svg>
+        <input
+          v-model="filters.q"
+          class="field__input proposals-list__filter-input proposals-list__filter-input--with-icon"
+          type="text"
+          placeholder="Search number or project…"
+        />
+      </div>
 
       <!-- Clear all -->
       <button
@@ -298,6 +312,19 @@
           >Clear</button>
         </div>
         <div class="proposals-list__jc-panel-list">
+          <!-- All option: selecting it clears any individual selection (= show all). -->
+          <label
+            class="proposals-list__jc-panel-item proposals-list__jc-panel-item--all"
+            @click.stop
+          >
+            <input
+              type="checkbox"
+              :checked="filters.job_code.length === 0"
+              @change="filters.job_code = []"
+            />
+            <span class="proposals-list__jc-panel-item-all-label">All job codes</span>
+          </label>
+          <div class="proposals-list__jc-panel-divider" />
           <label
             v-for="code in JOB_CODES"
             :key="code"
@@ -638,6 +665,27 @@ const SortIndicator = (props: { col: SortCol; sort: { col: SortCol; dir: 'asc' |
   flex-shrink: 0;
 }
 
+.proposals-list__search-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  flex: 1 1 200px;
+  min-width: 180px;
+  max-width: 360px;
+}
+
+.proposals-list__search-icon {
+  position: absolute;
+  left: 10px;
+  color: var(--color-text-subtle);
+  pointer-events: none;
+}
+
+.proposals-list__filter-input--with-icon {
+  width: 100%;
+  padding-left: 32px;
+}
+
 .proposals-list__filter-select {
   width: 150px;
 }
@@ -651,8 +699,13 @@ const SortIndicator = (props: { col: SortCol; sort: { col: SortCol; dir: 'asc' |
 }
 
 .proposals-list__clear {
-  color: var(--color-error);
+  color: var(--color-text-muted);
   font-size: 12px;
+}
+
+.proposals-list__clear:hover {
+  color: var(--color-text);
+  background: var(--color-bg-subtle);
 }
 
 .proposals-list__table-wrap {
@@ -798,6 +851,20 @@ const SortIndicator = (props: { col: SortCol; sort: { col: SortCol; dir: 'asc' |
   background: var(--color-bg-subtle);
 }
 
+.proposals-list__jc-panel-item--all {
+  font-weight: 600;
+}
+
+.proposals-list__jc-panel-item-all-label {
+  color: var(--color-text);
+}
+
+.proposals-list__jc-panel-divider {
+  height: 1px;
+  background: var(--color-border);
+  margin: 4px 0;
+}
+
 /* ── Job Codes cell ──────────────────────────────────────────────────────── */
 
 .proposals-list__jc-chips {
@@ -929,8 +996,11 @@ const SortIndicator = (props: { col: SortCol; sort: { col: SortCol; dir: 'asc' |
   .proposals-list__filter-input,
   .proposals-list__filter-select,
   .proposals-list__filter-select--wide,
-  .proposals-list__filter-date {
+  .proposals-list__filter-date,
+  .proposals-list__search-wrap {
     width: 100%;
+    max-width: none;
+    min-width: 0;
   }
 
   .proposals-list__clear {

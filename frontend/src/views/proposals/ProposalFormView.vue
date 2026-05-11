@@ -211,14 +211,14 @@
 
         <LineItemsTable
           v-if="form.type.value === 'Standard'"
-          :items="form.computedStandardItems.value"
+          :items="form.standardItems.value"
           variant="Standard"
           @add="form.addStandardItem()"
           @remove="form.removeStandardItem"
         />
         <LineItemsTable
           v-else
-          :items="form.computedMPItems.value"
+          :items="form.mpItems.value"
           variant="MP"
           @add="form.addMPItem()"
           @remove="form.removeMPItem"
@@ -249,10 +249,10 @@
               class="field__input"
               :class="{ 'field__input--error': form.errors.value.taxRate }"
               type="number"
-              step="0.0001"
+              step="0.001"
               min="0"
               :disabled="!form.taxable.value"
-              :value="form.taxRate.value * 100"
+              :value="taxRatePercentDisplay"
               @input="onTaxRateInput($event)"
             />
             <span v-if="form.errors.value.taxRate" class="field__error">{{ form.errors.value.taxRate }}</span>
@@ -371,6 +371,7 @@ const { data: nextNumber } = useNextProposalNumber(typeRef)
 watch(nextNumber, (v) => {
   if (v && !isEdit && !form.number.value) {
     form.number.value = v
+    form.markFromNumberAutofill()
   }
 }, { immediate: true })
 
@@ -426,10 +427,29 @@ watch(taxRateData, (v) => {
   if (typeof v === 'number') form.onTaxRateLoaded(v)
 })
 
+// Tax rate displayed as a percent string so user input doesn't round-trip
+// through `decimal * 100` float math (which renders e.g. 8.25 as 8.249999…).
+// Supports up to 3 decimal digits on the percent (i.e. 5 decimals on the
+// stored decimal value).
+const taxRatePercentDisplay = ref<string>('')
+
+watch(() => form.taxRate.value, (v) => {
+  const pct = v * 100
+  const current = Number(taxRatePercentDisplay.value)
+  // Only resync display when the underlying value changed from outside (load,
+  // lookup, taxable toggle). If the user is typing, leave the string alone.
+  if (taxRatePercentDisplay.value === '' || !Number.isFinite(current) || Math.abs(current - pct) > 1e-6) {
+    taxRatePercentDisplay.value = pct === 0 ? '0' : (Math.round(pct * 1000) / 1000).toString()
+  }
+}, { immediate: true })
+
 function onTaxRateInput(e: Event) {
-  const v = Number((e.target as HTMLInputElement).value)
-  // Field shows %; store as decimal
-  form.onTaxRateUserEdit(isNaN(v) ? 0 : v / 100)
+  const raw = (e.target as HTMLInputElement).value
+  taxRatePercentDisplay.value = raw
+  const v = Number(raw)
+  // Field shows %; store as decimal (round to 5 places to avoid float drift)
+  const decimal = isNaN(v) ? 0 : Math.round((v / 100) * 100000) / 100000
+  form.onTaxRateUserEdit(decimal)
 }
 
 // ── Status options ────────────────────────────────────────────────────────────
