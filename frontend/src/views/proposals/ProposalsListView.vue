@@ -1,5 +1,5 @@
 <template>
-  <div class="proposals-list">
+  <div ref="rootRef" class="proposals-list">
     <!-- Page header -->
     <div class="proposals-list__header">
       <h1 class="proposals-list__title">Proposals</h1>
@@ -39,7 +39,7 @@
     </div>
 
     <!-- Filter row -->
-    <div class="proposals-list__filters">
+    <div ref="filtersRef" class="proposals-list__filters">
       <!-- Status multi-select -->
       <MultiSelect
         v-model="filters.status"
@@ -129,6 +129,21 @@
       >
         Clear all
       </button>
+
+      <!-- Columns picker (push to the end of the filter row) -->
+      <button
+        class="btn btn--ghost btn--sm proposals-list__columns-btn"
+        type="button"
+        title="Show / hide columns"
+        @click="toggleColumnsPanel"
+      >
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <rect x="3" y="3" width="18" height="18" rx="2"/>
+          <line x1="9" y1="3" x2="9" y2="21"/>
+          <line x1="15" y1="3" x2="15" y2="21"/>
+        </svg>
+        Columns
+      </button>
     </div>
 
     <!-- Table -->
@@ -160,36 +175,40 @@
       <table v-else class="table">
         <thead>
           <tr>
+            <!-- Locked first column: Proposal # -->
             <th @click="toggleSort('number')" class="proposals-list__sortable">
               Proposal # <SortIndicator :col="'number'" :sort="sort" />
             </th>
-            <th @click="toggleSort('date')" class="proposals-list__sortable">
-              Date <SortIndicator :col="'date'" :sort="sort" />
-            </th>
-            <th>Type</th>
-            <th>Client / Project</th>
-            <th>Project Name</th>
-            <!-- Job Codes column with header-click filter -->
-            <th class="proposals-list__jc-header" @click.stop="toggleJobCodePanel">
-              <span class="proposals-list__jc-header-inner">
-                Job Codes
-                <span
-                  v-if="filters.job_code.length"
-                  class="proposals-list__jc-badge"
-                >{{ filters.job_code.length }}</span>
-                <svg
-                  :class="['proposals-list__filter-icon', { 'is-active': filters.job_code.length }]"
-                  width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-                >
-                  <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/>
-                </svg>
-              </span>
-            </th>
-            <th>Status</th>
-            <th @click="toggleSort('total')" class="td--number proposals-list__sortable">
-              Total <SortIndicator :col="'total'" :sort="sort" />
-            </th>
-            <th></th>
+            <!-- Reorderable middle columns, driven by middleColumnOrder -->
+            <template v-for="key in middleColumnOrder" :key="key">
+              <th v-if="key === 'date' && visible.date" @click="toggleSort('date')" class="proposals-list__sortable">
+                Date <SortIndicator :col="'date'" :sort="sort" />
+              </th>
+              <th v-else-if="key === 'type' && visible.type">Type</th>
+              <th v-else-if="key === 'client' && visible.client">Client / Location</th>
+              <th v-else-if="key === 'project_name' && visible.project_name">Project Name</th>
+              <th v-else-if="key === 'job_codes' && visible.job_codes" class="proposals-list__jc-header" @click.stop="toggleJobCodePanel">
+                <span class="proposals-list__jc-header-inner">
+                  Job Codes
+                  <span
+                    v-if="filters.job_code.length"
+                    class="proposals-list__jc-badge"
+                  >{{ filters.job_code.length }}</span>
+                  <svg
+                    :class="['proposals-list__filter-icon', { 'is-active': filters.job_code.length }]"
+                    width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                  >
+                    <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/>
+                  </svg>
+                </span>
+              </th>
+              <th v-else-if="key === 'status' && visible.status">Status</th>
+              <th v-else-if="key === 'total' && visible.total" @click="toggleSort('total')" class="td--number proposals-list__sortable">
+                Total <SortIndicator :col="'total'" :sort="sort" />
+              </th>
+            </template>
+            <!-- Locked last column: Actions -->
+            <th><span class="visually-hidden">Actions</span></th>
           </tr>
         </thead>
         <tbody>
@@ -200,51 +219,52 @@
             @click="router.push({ name: 'proposal-detail', params: { id: item.id } })"
           >
             <td class="proposals-list__number">{{ item.number }}</td>
-            <td>{{ formatDate(item.date) }}</td>
-            <td @click.stop>
-              <StatusBadge
-                :label="item.type"
-                :variant="item.type === 'Standard' ? 'gray' : 'purple'"
-              />
-            </td>
-            <td>{{ item.client_name || item.project_location || '—' }}</td>
-            <td>
-              <span
-                v-if="item.project_name"
-                v-tooltip="(item.project_name?.length ?? 0) > 40 ? item.project_name : ''"
-                class="proposals-list__project-name"
-              >
-                {{ truncate(item.project_name, 40) }}
-              </span>
-              <span v-else>—</span>
-            </td>
-            <!-- Job Codes cell -->
-            <td @click.stop>
-              <div v-if="!item.job_codes.length" class="proposals-list__jc-empty">—</div>
-              <div v-else class="proposals-list__jc-chips">
+            <template v-for="key in middleColumnOrder" :key="key">
+              <td v-if="key === 'date' && visible.date">{{ formatDate(item.date) }}</td>
+              <td v-else-if="key === 'type' && visible.type" @click.stop>
                 <StatusBadge
-                  v-for="code in item.job_codes.slice(0, 3)"
-                  :key="code"
-                  :label="code"
-                  variant="light-gray"
+                  :label="item.type"
+                  :variant="item.type === 'Standard' ? 'gray' : 'purple'"
                 />
+              </td>
+              <td v-else-if="key === 'client' && visible.client">{{ item.client_name || item.project_location || '—' }}</td>
+              <td v-else-if="key === 'project_name' && visible.project_name">
                 <span
-                  v-if="item.job_codes.length > 3"
-                  v-tooltip="item.job_codes.slice(3).join('\n')"
-                  class="proposals-list__jc-more"
+                  v-if="item.project_name"
+                  v-tooltip="(item.project_name?.length ?? 0) > 40 ? item.project_name : ''"
+                  class="proposals-list__project-name"
                 >
-                  +{{ item.job_codes.length - 3 }}
+                  {{ truncate(item.project_name, 40) }}
                 </span>
-              </div>
-            </td>
-            <td @click.stop>
-              <StatusPopover
-                :status="item.status"
-                :loading="updatingStatus === item.id"
-                @change="(s) => onStatusChange(item.id, s)"
-              />
-            </td>
-            <td class="td--number proposals-list__total">{{ formatCurrency(item.total) }}</td>
+                <span v-else>—</span>
+              </td>
+              <td v-else-if="key === 'job_codes' && visible.job_codes" @click.stop>
+                <div v-if="!item.job_codes.length" class="proposals-list__jc-empty">—</div>
+                <div v-else class="proposals-list__jc-chips">
+                  <StatusBadge
+                    v-for="code in item.job_codes.slice(0, 3)"
+                    :key="code"
+                    :label="code"
+                    variant="light-gray"
+                  />
+                  <span
+                    v-if="item.job_codes.length > 3"
+                    v-tooltip="item.job_codes.slice(3).join('\n')"
+                    class="proposals-list__jc-more"
+                  >
+                    +{{ item.job_codes.length - 3 }}
+                  </span>
+                </div>
+              </td>
+              <td v-else-if="key === 'status' && visible.status" @click.stop>
+                <StatusPopover
+                  :status="item.status"
+                  :loading="updatingStatus === item.id"
+                  @change="(s) => onStatusChange(item.id, s)"
+                />
+              </td>
+              <td v-else-if="key === 'total' && visible.total" class="td--number proposals-list__total">{{ formatCurrency(item.total) }}</td>
+            </template>
             <td @click.stop>
               <ActionButtons>
                 <button
@@ -343,6 +363,63 @@
       </div>
     </Popover>
 
+    <!-- Columns picker popover -->
+    <Popover ref="columnsPanelRef" :dismissable="true">
+      <div class="proposals-list__cols-panel">
+        <div class="proposals-list__cols-panel-header">
+          <span class="proposals-list__cols-panel-label">Columns</span>
+          <button
+            class="proposals-list__cols-panel-reset"
+            type="button"
+            @click.stop="resetColumns"
+          >Reset</button>
+        </div>
+        <p class="proposals-list__cols-panel-hint">Drag to reorder. Locked columns stay in place.</p>
+        <div class="proposals-list__cols-panel-list">
+          <!-- Locked: Proposal # (first) -->
+          <div class="proposals-list__cols-panel-item is-locked" @click.stop>
+            <span class="proposals-list__cols-drag-spacer"></span>
+            <input type="checkbox" checked disabled />
+            Proposal #
+            <span class="proposals-list__cols-locked">always</span>
+          </div>
+
+          <!-- Reorderable middle columns -->
+          <label
+            v-for="key in middleColumnOrder"
+            :key="key"
+            class="proposals-list__cols-panel-item"
+            :class="{
+              'is-dragging': draggingKey === key,
+              'is-drag-over': dragOverKey === key && draggingKey !== key,
+            }"
+            draggable="true"
+            @click.stop
+            @dragstart="onDragStart(key, $event)"
+            @dragover="onDragOver(key, $event)"
+            @drop="onDrop(key, $event)"
+            @dragend="onDragEnd"
+          >
+            <span class="proposals-list__cols-drag-handle" aria-hidden="true">⋮⋮</span>
+            <input
+              type="checkbox"
+              :checked="visible[key]"
+              @change="toggleColumn(key)"
+            />
+            {{ columnLabel(key) }}
+          </label>
+
+          <!-- Locked: Actions (last) -->
+          <div class="proposals-list__cols-panel-item is-locked" @click.stop>
+            <span class="proposals-list__cols-drag-spacer"></span>
+            <input type="checkbox" checked disabled />
+            Actions
+            <span class="proposals-list__cols-locked">always</span>
+          </div>
+        </div>
+      </div>
+    </Popover>
+
     <!-- Import dummy modal -->
     <ConfirmModal
       v-model:visible="showImportModal"
@@ -381,7 +458,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, h } from 'vue'
+import { ref, computed, watch, h, onMounted, onBeforeUnmount } from 'vue'
 import { useRouter } from 'vue-router'
 import MultiSelect from 'primevue/multiselect'
 import Select from 'primevue/select'
@@ -462,6 +539,128 @@ const TYPE_OPTIONS = [
   { label: 'Standard', value: 'Standard' },
   { label: 'MP', value: 'MP' },
 ]
+
+// ── Column visibility ─────────────────────────────────────────────────────────
+// Proposal # and Actions are always shown — they're the identity + primary controls.
+
+type ColumnKey = 'date' | 'type' | 'client' | 'project_name' | 'job_codes' | 'status' | 'total'
+
+const COLUMN_LABELS: Record<ColumnKey, string> = {
+  date: 'Date',
+  type: 'Type',
+  client: 'Client / Location',
+  project_name: 'Project Name',
+  job_codes: 'Job Codes',
+  status: 'Status',
+  total: 'Total',
+}
+
+function columnLabel(key: ColumnKey): string {
+  return COLUMN_LABELS[key]
+}
+
+const COLUMN_STORAGE_KEY = 'proposals-list:columns:v1'
+const ORDER_STORAGE_KEY = 'proposals-list:column-order:v1'
+const DEFAULT_VISIBLE: Record<ColumnKey, boolean> = {
+  date: true, type: true, client: true, project_name: true,
+  job_codes: true, status: true, total: true,
+}
+const DEFAULT_ORDER: ColumnKey[] = ['date', 'type', 'client', 'project_name', 'job_codes', 'status', 'total']
+
+function loadVisible(): Record<ColumnKey, boolean> {
+  try {
+    const raw = localStorage.getItem(COLUMN_STORAGE_KEY)
+    if (!raw) return { ...DEFAULT_VISIBLE }
+    const parsed = JSON.parse(raw) as Partial<Record<ColumnKey, boolean>>
+    return { ...DEFAULT_VISIBLE, ...parsed }
+  } catch {
+    return { ...DEFAULT_VISIBLE }
+  }
+}
+
+function loadOrder(): ColumnKey[] {
+  try {
+    const raw = localStorage.getItem(ORDER_STORAGE_KEY)
+    if (!raw) return [...DEFAULT_ORDER]
+    const parsed = JSON.parse(raw) as ColumnKey[]
+    // Validate: must be an array of known keys. Append any missing (forward-compat
+    // if we add a new column later), drop unknown (backward-compat if we remove one).
+    const known = new Set<ColumnKey>(DEFAULT_ORDER)
+    const seen = new Set<ColumnKey>()
+    const cleaned = parsed.filter((k) => known.has(k) && !seen.has(k) && (seen.add(k), true))
+    for (const k of DEFAULT_ORDER) if (!seen.has(k)) cleaned.push(k)
+    return cleaned
+  } catch {
+    return [...DEFAULT_ORDER]
+  }
+}
+
+const visible = ref<Record<ColumnKey, boolean>>(loadVisible())
+const middleColumnOrder = ref<ColumnKey[]>(loadOrder())
+
+watch(visible, (v) => {
+  try { localStorage.setItem(COLUMN_STORAGE_KEY, JSON.stringify(v)) } catch { /* quota or private mode */ }
+}, { deep: true })
+
+watch(middleColumnOrder, (v) => {
+  try { localStorage.setItem(ORDER_STORAGE_KEY, JSON.stringify(v)) } catch { /* quota or private mode */ }
+}, { deep: true })
+
+const columnsPanelRef = ref<InstanceType<typeof Popover> | null>(null)
+function toggleColumnsPanel(e: MouseEvent) { columnsPanelRef.value?.toggle(e) }
+
+function toggleColumn(key: ColumnKey) {
+  visible.value = { ...visible.value, [key]: !visible.value[key] }
+}
+
+function resetColumns() {
+  visible.value = { ...DEFAULT_VISIBLE }
+  middleColumnOrder.value = [...DEFAULT_ORDER]
+}
+
+// ── Drag-and-drop reorder (native HTML5 DnD) ──────────────────────────────────
+// Keep the dragged key in module state during the drag — `dataTransfer` is the
+// "official" channel but it's read-only outside of `dragstart` in some browsers,
+// so we use a ref as a reliable side-channel.
+
+const draggingKey = ref<ColumnKey | null>(null)
+const dragOverKey = ref<ColumnKey | null>(null)
+
+function onDragStart(key: ColumnKey, e: DragEvent) {
+  draggingKey.value = key
+  if (e.dataTransfer) {
+    e.dataTransfer.effectAllowed = 'move'
+    // Required for Firefox to actually fire the drag.
+    e.dataTransfer.setData('text/plain', key)
+  }
+}
+
+function onDragOver(key: ColumnKey, e: DragEvent) {
+  if (!draggingKey.value || draggingKey.value === key) return
+  e.preventDefault()  // allow drop
+  if (e.dataTransfer) e.dataTransfer.dropEffect = 'move'
+  dragOverKey.value = key
+}
+
+function onDrop(key: ColumnKey, e: DragEvent) {
+  e.preventDefault()
+  const from = draggingKey.value
+  draggingKey.value = null
+  dragOverKey.value = null
+  if (!from || from === key) return
+  const order = [...middleColumnOrder.value]
+  const fromIdx = order.indexOf(from)
+  const toIdx = order.indexOf(key)
+  if (fromIdx === -1 || toIdx === -1) return
+  order.splice(fromIdx, 1)
+  order.splice(toIdx, 0, from)
+  middleColumnOrder.value = order
+}
+
+function onDragEnd() {
+  draggingKey.value = null
+  dragOverKey.value = null
+}
 
 // ── Job Codes column-header filter ────────────────────────────────────────────
 
@@ -598,6 +797,35 @@ function onDeleteConfirm() {
   deleteMutation(deleteTarget.value.id)
 }
 
+// ── Sticky header alignment ───────────────────────────────────────────────────
+// The filter row is sticky at the top of the scroll container, and the table
+// header sticks directly below it. Filter row height varies with wrap state
+// and viewport width, so we measure it and expose the height as a CSS variable
+// that the table header's `top` reads.
+
+const rootRef = ref<HTMLElement | null>(null)
+const filtersRef = ref<HTMLElement | null>(null)
+let filtersResizeObserver: ResizeObserver | null = null
+
+function syncFiltersHeight() {
+  if (!rootRef.value || !filtersRef.value) return
+  const h = filtersRef.value.offsetHeight
+  rootRef.value.style.setProperty('--filters-height', `${h}px`)
+}
+
+onMounted(() => {
+  syncFiltersHeight()
+  if (typeof ResizeObserver !== 'undefined' && filtersRef.value) {
+    filtersResizeObserver = new ResizeObserver(syncFiltersHeight)
+    filtersResizeObserver.observe(filtersRef.value)
+  }
+})
+
+onBeforeUnmount(() => {
+  filtersResizeObserver?.disconnect()
+  filtersResizeObserver = null
+})
+
 // ── Formatters ────────────────────────────────────────────────────────────────
 
 function formatDate(iso: string) {
@@ -626,7 +854,9 @@ const SortIndicator = (props: { col: SortCol; sort: { col: SortCol; dir: 'asc' |
   display: flex;
   flex-direction: column;
   gap: 20px;
-  padding: 24px;
+  /* No padding here — .content (the scroll container) already applies 24px. */
+  /* JS sets --filters-height at runtime; this is a fallback for the first paint. */
+  --filters-height: 56px;
 }
 
 .proposals-list__header {
@@ -655,8 +885,12 @@ const SortIndicator = (props: { col: SortCol; sort: { col: SortCol; dir: 'asc' |
   align-items: center;
   position: sticky;
   top: 0;
-  background: var(--color-bg-page, #f8fafc);
-  padding: 8px 0;
+  /* Bleed left/right so the background covers the parent's padding when stuck,
+     preventing scrolling content from peeking through at the page edges. */
+  margin-inline: -24px;
+  padding: 12px 24px;
+  background: var(--color-bg-page, var(--color-bg-app));
+  border-bottom: 1px solid var(--color-border);
   z-index: 5;
 }
 
@@ -708,13 +942,142 @@ const SortIndicator = (props: { col: SortCol; sort: { col: SortCol; dir: 'asc' |
   background: var(--color-bg-subtle);
 }
 
+.proposals-list__columns-btn {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--color-text-muted);
+}
+
+.proposals-list__columns-btn:hover {
+  color: var(--color-text);
+}
+
+/* ── Columns picker popover ─────────────────────────────────────────────── */
+
+.proposals-list__cols-panel {
+  min-width: 220px;
+  display: flex;
+  flex-direction: column;
+}
+
+.proposals-list__cols-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.proposals-list__cols-panel-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.proposals-list__cols-panel-reset {
+  font-size: 12px;
+  color: var(--color-primary);
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+}
+
+.proposals-list__cols-panel-hint {
+  padding: 0 12px 8px;
+  margin: 0;
+  font-size: 11px;
+  color: var(--color-text-subtle);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.proposals-list__cols-panel-list {
+  padding: 4px 0;
+  max-height: 320px;
+  overflow-y: auto;
+}
+
+.proposals-list__cols-panel-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  font-size: 13px;
+  cursor: grab;
+  transition: background 0.1s, opacity 0.1s;
+  color: var(--color-text);
+  user-select: none;
+}
+
+.proposals-list__cols-panel-item:hover:not(.is-locked) {
+  background: var(--color-bg-subtle);
+}
+
+.proposals-list__cols-panel-item:active:not(.is-locked) {
+  cursor: grabbing;
+}
+
+.proposals-list__cols-panel-item.is-locked {
+  color: var(--color-text-muted);
+  cursor: default;
+}
+
+.proposals-list__cols-panel-item.is-dragging {
+  opacity: 0.4;
+}
+
+.proposals-list__cols-panel-item.is-drag-over {
+  background: var(--color-bg-subtle);
+  box-shadow: inset 0 2px 0 var(--color-primary);
+}
+
+.proposals-list__cols-drag-handle {
+  display: inline-flex;
+  align-items: center;
+  color: var(--color-text-subtle);
+  font-size: 11px;
+  letter-spacing: -2px;
+  width: 12px;
+  cursor: grab;
+}
+
+.proposals-list__cols-drag-spacer {
+  display: inline-block;
+  width: 12px;
+}
+
+.proposals-list__cols-locked {
+  margin-left: auto;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--color-text-subtle);
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
 .proposals-list__table-wrap {
   display: flex;
   flex-direction: column;
   background: var(--color-bg);
   border: 1px solid var(--color-border);
   border-radius: 8px;
-  overflow-x: auto;
+  /* No `overflow` here — it creates a sticky-containing block and traps the
+     sticky `<thead>` inside the card instead of pinning to the page scroll. */
 }
 
 .table {
@@ -734,6 +1097,11 @@ const SortIndicator = (props: { col: SortCol; sort: { col: SortCol; dir: 'asc' |
   border-bottom: 1px solid var(--color-border);
   text-align: left;
   white-space: nowrap;
+  position: sticky;
+  /* Sits directly under the filter row — height set by JS at runtime via the
+     --filters-height variable on .proposals-list. */
+  top: var(--filters-height, 56px);
+  z-index: 3;
 }
 
 .proposals-list__sortable {
@@ -983,7 +1351,6 @@ const SortIndicator = (props: { col: SortCol; sort: { col: SortCol; dir: 'asc' |
 
 @media (max-width: 900px) {
   .proposals-list {
-    padding: 16px;
     gap: 14px;
   }
 
@@ -991,6 +1358,10 @@ const SortIndicator = (props: { col: SortCol; sort: { col: SortCol; dir: 'asc' |
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 8px;
+    /* .content drops to 16px horizontal padding at this breakpoint, so the
+       sticky background's bleed must match. */
+    margin-inline: -16px;
+    padding: 12px 16px;
   }
 
   .proposals-list__filter-input,
@@ -1009,22 +1380,8 @@ const SortIndicator = (props: { col: SortCol; sort: { col: SortCol; dir: 'asc' |
 }
 
 @media (max-width: 600px) {
-  .proposals-list {
-    padding: 12px;
-  }
-
   .proposals-list__filters {
     grid-template-columns: 1fr;
-  }
-
-  /* Hide Type, Project Name, and Job Codes columns on mobile */
-  .table thead th:nth-child(3),
-  .table tbody td:nth-child(3),
-  .table thead th:nth-child(5),
-  .table tbody td:nth-child(5),
-  .table thead th:nth-child(6),
-  .table tbody td:nth-child(6) {
-    display: none;
   }
 
   .proposals-list__header {
