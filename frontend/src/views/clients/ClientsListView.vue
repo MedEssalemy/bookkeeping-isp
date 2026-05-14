@@ -90,11 +90,13 @@
       </div>
     </div>
 
-    <!-- Table -->
+    <!-- Table: this is the only scrolling area on the page. The page chrome
+         (header, banner, filters) above stays anchored; <thead> sticks to the
+         top of this wrapper as rows scroll. -->
     <div class="clients-list__table-wrap">
-      <template v-if="isLoading">
+      <div v-if="isLoading" class="clients-list__skeletons">
         <div v-for="i in 5" :key="i" class="skeleton skeleton--row" />
-      </template>
+      </div>
 
       <EmptyState
         v-else-if="!filteredRows.length"
@@ -119,13 +121,17 @@
         </thead>
         <tbody>
           <template v-for="group in groupedRows" :key="group.business">
-            <!-- Sticky business header -->
+            <!-- Business group header: spans the full row. The inner div is
+                 sticky on the left so the label stays visible even when the
+                 table is scrolled horizontally. -->
             <tr class="clients-table__group">
               <td :colspan="auth.canEdit ? 8 : 7" class="clients-table__group-cell">
-                <span class="clients-table__group-name">{{ group.business }}</span>
-                <span class="clients-table__group-count">
-                  {{ group.rows.length }} client name{{ group.rows.length === 1 ? '' : 's' }}
-                </span>
+                <div class="clients-table__group-inner">
+                  <span class="clients-table__group-name">{{ group.business }}</span>
+                  <span class="clients-table__group-count">
+                    {{ group.rows.length }} client name{{ group.rows.length === 1 ? '' : 's' }}
+                  </span>
+                </div>
               </td>
             </tr>
             <!-- Contact rows -->
@@ -414,10 +420,20 @@ async function onImportConfirm() {
 </script>
 
 <style scoped>
+/* The view fills its slot in .content. All vertical scrolling happens inside
+   the table wrapper below — the chrome (header, filters) stays anchored. */
 .clients-list {
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 16px;
+  height: 100%;
+  min-height: 0;
+}
+
+.clients-list__header,
+.clients-list__filters,
+.clients-list__banner {
+  flex-shrink: 0;
 }
 
 .clients-list__header {
@@ -491,12 +507,24 @@ async function onImportConfirm() {
   margin-left: auto;
 }
 
+/* Single scroll container: takes the remaining vertical space. Scrolls both
+   axes — the inner <thead> sticks to the top edge of *this* element, and the
+   horizontal scrollbar lives along the bottom edge, always reachable without
+   scrolling vertically first. */
 .clients-list__table-wrap {
   background: var(--color-bg);
   border: 1px solid var(--color-border);
   border-radius: 8px;
+  flex: 1;
+  min-height: 0;
   min-width: 0;
-  overflow-x: auto;
+  overflow: auto;
+}
+
+.clients-list__skeletons {
+  display: flex;
+  flex-direction: column;
+  padding: 0;
 }
 
 /* ── Split-button menu (Export) ─────────────────────────────────────────── */
@@ -561,9 +589,12 @@ async function onImportConfirm() {
   border-bottom: 1px solid var(--color-border);
   text-align: left;
   white-space: nowrap;
+  /* Sticks to the top of .clients-list__table-wrap (the scroll container). */
   position: sticky;
   top: 0;
-  z-index: 3;
+  /* Above the group-header row (z: 2) and body cells, so the header band
+     always wins when both stick to similar offsets. */
+  z-index: 4;
 }
 
 .table tbody td {
@@ -590,36 +621,61 @@ async function onImportConfirm() {
 .clients-table__addr {
   font-size: 12px;
   color: var(--color-text-muted);
+  white-space: nowrap;
 }
 
-/* Group header row */
+/* ── Group header row ───────────────────────────────────────────────────────
+   The <td> spans all columns (via colspan) so it visually owns the full row.
+   Its background extends across the table's full width. The inner div is
+   sticky on the left so the label stays anchored to the visible left edge
+   when the user scrolls the table horizontally — what looks like a "section
+   divider" stays readable rather than scrolling out of view.
+   The <tr> is also sticky vertically (just below the <thead>), so deep into
+   a long Kaiser group you still know which business you're in. */
 .clients-table__group td {
-  background: linear-gradient(
-    to bottom,
-    var(--color-bg-subtle),
-    var(--color-bg-subtle)
-  );
-  padding: 6px 14px;
-  font-size: 11px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: var(--color-text-muted);
+  background: var(--color-bg-subtle);
+  padding: 0;
   border-bottom: 1px solid var(--color-border);
   border-top: 2px solid var(--color-border);
+  /* Pinned just below the <thead> (which is ~36px tall here). When you're
+     deep inside a long group, the business name stays in view. */
+  position: sticky;
+  top: 36px;
+  z-index: 2;
 }
 
 .clients-table__group:first-child td { border-top: none; }
 
 .clients-table__group-cell {
-  display: flex;
+  /* The cell stretches with the table; the inner is the visible band. */
+  padding: 0;
+}
+
+/* Sticky band inside the colspan'd cell: pinned to the left edge of the
+   scroll container so the label stays at the visible left edge even when
+   the table is scrolled horizontally. display: inline-flex makes the band
+   size to its content rather than the full table width — the underlying
+   <td> still provides the background that spans every column. */
+.clients-table__group-inner {
+  position: sticky;
+  left: 0;
+  display: inline-flex;
   align-items: baseline;
   gap: 10px;
+  padding: 8px 14px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--color-text-muted);
 }
 
 .clients-table__group-name {
   color: var(--color-text);
   letter-spacing: 0.04em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .clients-table__group-count {
@@ -628,6 +684,7 @@ async function onImportConfirm() {
   text-transform: none;
   letter-spacing: 0;
   color: var(--color-text-subtle);
+  flex-shrink: 0;
 }
 
 /* Actions column */

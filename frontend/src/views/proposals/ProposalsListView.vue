@@ -1,5 +1,5 @@
 <template>
-  <div ref="rootRef" class="proposals-list">
+  <div class="proposals-list">
     <!-- Page header -->
     <div class="proposals-list__header">
       <h1 class="proposals-list__title">Proposals</h1>
@@ -39,7 +39,7 @@
     </div>
 
     <!-- Filter row -->
-    <div ref="filtersRef" class="proposals-list__filters">
+    <div class="proposals-list__filters">
       <!-- Status multi-select -->
       <MultiSelect
         v-model="filters.status"
@@ -466,7 +466,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, h, onMounted, onBeforeUnmount } from 'vue'
+import { ref, computed, watch, h } from 'vue'
 import { useRouter } from 'vue-router'
 import MultiSelect from 'primevue/multiselect'
 import Select from 'primevue/select'
@@ -824,35 +824,6 @@ function onDeleteConfirm() {
   deleteMutation(deleteTarget.value.id)
 }
 
-// ── Sticky header alignment ───────────────────────────────────────────────────
-// The filter row is sticky at the top of the scroll container, and the table
-// header sticks directly below it. Filter row height varies with wrap state
-// and viewport width, so we measure it and expose the height as a CSS variable
-// that the table header's `top` reads.
-
-const rootRef = ref<HTMLElement | null>(null)
-const filtersRef = ref<HTMLElement | null>(null)
-let filtersResizeObserver: ResizeObserver | null = null
-
-function syncFiltersHeight() {
-  if (!rootRef.value || !filtersRef.value) return
-  const h = filtersRef.value.offsetHeight
-  rootRef.value.style.setProperty('--filters-height', `${h}px`)
-}
-
-onMounted(() => {
-  syncFiltersHeight()
-  if (typeof ResizeObserver !== 'undefined' && filtersRef.value) {
-    filtersResizeObserver = new ResizeObserver(syncFiltersHeight)
-    filtersResizeObserver.observe(filtersRef.value)
-  }
-})
-
-onBeforeUnmount(() => {
-  filtersResizeObserver?.disconnect()
-  filtersResizeObserver = null
-})
-
 // ── Formatters ────────────────────────────────────────────────────────────────
 
 function formatDate(iso: string) {
@@ -877,13 +848,21 @@ const SortIndicator = (props: { col: SortCol; sort: { col: SortCol; dir: 'asc' |
 </script>
 
 <style scoped>
+/* The view fills its slot in .content. All vertical scrolling happens inside
+   the table wrapper below — the chrome (header, filters) stays anchored at
+   the top, and the horizontal scrollbar lives along the bottom of the
+   wrapper so it's always reachable. */
 .proposals-list {
   display: flex;
   flex-direction: column;
-  gap: 20px;
-  /* No padding here — .content (the scroll container) already applies 24px. */
-  /* JS sets --filters-height at runtime; this is a fallback for the first paint. */
-  --filters-height: 56px;
+  gap: 16px;
+  height: 100%;
+  min-height: 0;
+}
+
+.proposals-list__header,
+.proposals-list__filters {
+  flex-shrink: 0;
 }
 
 .proposals-list__header {
@@ -905,20 +884,18 @@ const SortIndicator = (props: { col: SortCol; sort: { col: SortCol; dir: 'asc' |
   gap: 8px;
 }
 
+/* Filters live in the flex chrome above the scrolling table wrapper, so no
+   sticky/bleed gymnastics are needed — they stay visible because their flex
+   slot doesn't scroll. */
 .proposals-list__filters {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
   align-items: center;
-  position: sticky;
-  top: 0;
-  /* Bleed left/right so the background covers the parent's padding when stuck,
-     preventing scrolling content from peeking through at the page edges. */
-  margin-inline: -24px;
-  padding: 12px 24px;
-  background: var(--color-bg-page, var(--color-bg-app));
-  border-bottom: 1px solid var(--color-border);
-  z-index: 5;
+  padding: 12px 14px;
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
 }
 
 .proposals-list__filter-input {
@@ -1097,21 +1074,20 @@ const SortIndicator = (props: { col: SortCol; sort: { col: SortCol; dir: 'asc' |
   border: 0;
 }
 
+/* Single scroll container for the table: takes the remaining vertical space.
+   Scrolls both axes — the inner <thead> sticks to the top edge of *this*
+   element, and the horizontal scrollbar lives along the bottom edge,
+   always reachable without scrolling vertically first. */
 .proposals-list__table-wrap {
   display: flex;
   flex-direction: column;
   background: var(--color-bg);
   border: 1px solid var(--color-border);
   border-radius: 8px;
-  /* Allow the table to scroll horizontally inside its card when columns
-     collectively exceed the available width. min-width: 0 lets the wrapper
-     shrink below the table's intrinsic width so the scrollbar actually appears
-     (without it, the wrapper grows to fit content and pushes the page wider).
-     Trade-off: <thead> can no longer be sticky to the page scroll (the wrap
-     becomes the sticky containing block); we accept this in exchange for
-     never losing access to columns. */
+  flex: 1;
+  min-height: 0;
   min-width: 0;
-  overflow-x: auto;
+  overflow: auto;
   -webkit-overflow-scrolling: touch;
 }
 
@@ -1132,6 +1108,12 @@ const SortIndicator = (props: { col: SortCol; sort: { col: SortCol; dir: 'asc' |
   border-bottom: 1px solid var(--color-border);
   text-align: left;
   white-space: nowrap;
+  /* Sticks to the top of .proposals-list__table-wrap (the scroll container).
+     Above body cells; the pinned Actions column overrides this in its own
+     rule so it stays both top- AND right-pinned. */
+  position: sticky;
+  top: 0;
+  z-index: 3;
 }
 
 .proposals-list__sortable {
@@ -1314,8 +1296,12 @@ const SortIndicator = (props: { col: SortCol; sort: { col: SortCol; dir: 'asc' |
   box-shadow: -8px 0 8px -8px rgba(15, 23, 42, 0.12);
 }
 
+/* The pinned Actions header sits at the corner where sticky-top meets
+   sticky-right. Needs the highest z-index so it draws over both the rest
+   of the header row and the column of pinned body cells. */
 .table thead th.td--actions {
   background: var(--color-bg-subtle);
+  z-index: 5;
 }
 
 .proposals-list__row {
@@ -1417,10 +1403,7 @@ const SortIndicator = (props: { col: SortCol; sort: { col: SortCol; dir: 'asc' |
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 8px;
-    /* .content drops to 16px horizontal padding at this breakpoint, so the
-       sticky background's bleed must match. */
-    margin-inline: -16px;
-    padding: 12px 16px;
+    padding: 12px;
   }
 
   .proposals-list__filter-input,
