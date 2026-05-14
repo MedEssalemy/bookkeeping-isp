@@ -163,16 +163,36 @@ export interface ProposalPayload {
 
 // ── Clients ───────────────────────────────────────────────────────────────────
 
+/**
+ * A row in the clients/contacts table.
+ *
+ * Semantically: `name` is the *person's* name (e.g. "Ali Gharaviram"), and
+ * `business_name` is the organization (e.g. "Kaiser Permanente"). Originally
+ * the model used `name` for the org; we kept the field name to avoid a wide
+ * rename, but the meaning shifted when real data arrived.
+ *
+ * The same person may appear in multiple rows (one per facility/address).
+ */
 export interface ClientContact {
+  /** The contact person's name (CSV column "Client Name"). */
   name: string
+  /** The street address tied to this row. */
   address: string
   title?: string
+  /** The parent organization (CSV column "Business Name"). */
   business_name?: string
   department?: string
   phone?: string
   email?: string
   city?: string
+  county?: string
   state?: string
+  /**
+   * Specific site or sub-location within the business (e.g. for Kaiser
+   * Permanente: "Elk Grove MOB" vs. "South Sacramento MC"). Used to
+   * disambiguate contact rows in the picker UI.
+   */
+  facility?: string
 }
 
 // ── MP Destinations ───────────────────────────────────────────────────────────

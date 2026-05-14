@@ -16,6 +16,12 @@ importers:
       '@tanstack/vue-query':
         specifier: ^5.100.3
         version: 5.100.3(vue@3.5.33(typescript@6.0.3))
+      '@tiptap/extension-bullet-list':
+        specifier: 3.22.4
+        version: 3.22.4(@tiptap/extension-list@3.22.4(@tiptap/core@3.22.4(@tiptap/pm@3.22.4))(@tiptap/pm@3.22.4))
+      '@tiptap/extension-ordered-list':
+        specifier: 3.22.4
+        version: 3.22.4(@tiptap/extension-list@3.22.4(@tiptap/core@3.22.4(@tiptap/pm@3.22.4))(@tiptap/pm@3.22.4))
       '@tiptap/extension-underline':
         specifier: ^3.22.4
         version: 3.22.4(@tiptap/core@3.22.4(@tiptap/pm@3.22.4))

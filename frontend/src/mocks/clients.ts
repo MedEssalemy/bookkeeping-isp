@@ -1,116 +1,97 @@
 import type { ClientContact } from '../types/proposal'
+import { SEEDED_CLIENT_CONTACTS } from './clientsSeed'
 
-export const MOCK_CLIENT_CONTACTS: ClientContact[] = [
-  // Acme Medical Center — 2 addresses
-  {
-    name: 'Acme Medical Center',
-    address: '100 Main St',
-    title: 'Director of Imaging',
-    business_name: 'Acme Medical Center',
-    department: 'Radiology',
-    phone: '(512) 555-0100',
-    email: 'imaging@acmemed.example',
-    city: 'Austin',
-    state: 'TX',
-  },
-  {
-    name: 'Acme Medical Center',
-    address: '200 Oak Ave',
-    title: 'Facilities Manager',
-    business_name: 'Acme Medical Center',
-    department: 'Facilities',
-    phone: '(713) 555-0101',
-    email: 'facilities@acmemed.example',
-    city: 'Houston',
-    state: 'TX',
-  },
-  // Beta Radiology Group — single address
-  {
-    name: 'Beta Radiology Group',
-    address: '55 Park Blvd',
-    title: 'Lead Tech',
-    business_name: 'Beta Radiology Group',
-    department: 'Operations',
-    phone: '(214) 555-0202',
-    email: 'ops@betarad.example',
-    city: 'Dallas',
-    state: 'TX',
-  },
-  // Gamma Health Systems — 3 addresses
-  {
-    name: 'Gamma Health Systems',
-    address: '300 Elm Rd',
-    title: 'CFO',
-    business_name: 'Gamma Health Systems',
-    department: 'Finance',
-    phone: '(210) 555-0303',
-    email: 'cfo@gammahealth.example',
-    city: 'San Antonio',
-    state: 'TX',
-  },
-  {
-    name: 'Gamma Health Systems',
-    address: '400 Pine St',
-    title: 'Site Director',
-    business_name: 'Gamma Health Systems',
-    department: 'Operations',
-    phone: '(972) 555-0304',
-    email: 'plano@gammahealth.example',
-    city: 'Plano',
-    state: 'TX',
-  },
-  {
-    name: 'Gamma Health Systems',
-    address: '500 Cedar Ln',
-    title: 'Operations Lead',
-    business_name: 'Gamma Health Systems',
-    department: 'Operations',
-    phone: '(817) 555-0305',
-    email: 'ftworth@gammahealth.example',
-    city: 'Fort Worth',
-    state: 'TX',
-  },
-  // Delta Imaging LLC
-  {
-    name: 'Delta Imaging LLC',
-    address: '12 River Dr',
-    title: 'Owner',
-    business_name: 'Delta Imaging LLC',
-    department: '',
-    phone: '(915) 555-0404',
-    email: 'owner@deltaimg.example',
-    city: 'El Paso',
-    state: 'TX',
-  },
-  // No-tax client (city has no tax-rate match)
-  {
-    name: 'No Tax City Corp',
-    address: '1 Blank Ave',
-    title: 'Buyer',
-    business_name: 'No Tax City Corp',
-    department: 'Procurement',
-    phone: '(555) 555-0000',
-    email: 'buyer@notaxcity.example',
-    city: 'Nowhere',
-    state: 'TX',
-  },
-]
+/**
+ * In-memory contacts store. Imports the seed and lets the app mutate it via
+ * the UI (Import CSV, future Add/Edit). Reload resets to seed — persistence
+ * comes when the backend lands.
+ */
+const contacts: ClientContact[] = [...SEEDED_CLIENT_CONTACTS]
 
-function delay<T>(data: T, ms = 150): Promise<T> {
+export function getAllContacts(): ClientContact[] {
+  return contacts
+}
+
+function delay<T>(data: T, ms = 80): Promise<T> {
   return new Promise((resolve) => setTimeout(() => resolve(data), ms))
 }
 
-// Distinct names search — used by the client name combobox
+/**
+ * Search by contact person name. The proposal form's "Contact" combobox uses
+ * this. Returns *distinct* person names that match the query. Same person at
+ * multiple facilities collapses into a single result.
+ */
 export function mockSearchClientNames(q: string): Promise<string[]> {
-  const names = Array.from(new Set(MOCK_CLIENT_CONTACTS.map((c) => c.name)))
+  const query = q.toLowerCase().trim()
+  const names = Array.from(new Set(contacts.map((c) => c.name).filter(Boolean)))
   return delay(
-    names.filter((n) => n.toLowerCase().includes(q.toLowerCase())),
+    names.filter((n) => n.toLowerCase().includes(query)).sort(),
   )
 }
 
-// Lookup contact rows for a given name (1..N)
+/**
+ * Return all contact rows for the given person name. The Contact picker on
+ * the proposal form expects 1..N rows here — one per facility/address.
+ */
 export function mockClientLookup(name: string): Promise<ClientContact[]> {
+  const key = name.trim().toLowerCase()
+  return delay(contacts.filter((c) => c.name.trim().toLowerCase() === key))
+}
+
+/**
+ * List view: distinct businesses with counts. Used by ClientsListView.
+ */
+export interface BusinessSummary {
+  business_name: string
+  contact_count: number   // distinct person names
+  facility_count: number  // distinct facilities
+  row_count: number       // raw contact rows
+}
+
+export function mockListBusinesses(): Promise<BusinessSummary[]> {
+  const byBiz = new Map<string, { people: Set<string>; facilities: Set<string>; rows: number }>()
+  for (const c of contacts) {
+    const biz = c.business_name?.trim() || '(Unspecified)'
+    let agg = byBiz.get(biz)
+    if (!agg) {
+      agg = { people: new Set(), facilities: new Set(), rows: 0 }
+      byBiz.set(biz, agg)
+    }
+    if (c.name) agg.people.add(c.name)
+    if (c.facility) agg.facilities.add(c.facility)
+    agg.rows += 1
+  }
+  const out: BusinessSummary[] = Array.from(byBiz.entries())
+    .map(([business_name, agg]) => ({
+      business_name,
+      contact_count: agg.people.size,
+      facility_count: agg.facilities.size,
+      row_count: agg.rows,
+    }))
+    .sort((a, b) => a.business_name.localeCompare(b.business_name))
+  return delay(out)
+}
+
+/**
+ * Detail view: all contact rows for a specific business.
+ */
+export function mockGetBusinessContacts(business: string): Promise<ClientContact[]> {
+  const key = business.trim().toLowerCase()
   return delay(
-    MOCK_CLIENT_CONTACTS.filter((c) => c.name.toLowerCase() === name.toLowerCase()),
+    contacts.filter((c) => (c.business_name?.trim().toLowerCase() ?? '') === key),
   )
+}
+
+/**
+ * Full contacts list — used by the unified Client Name picker on the
+ * proposal form. One row per facility/address, so the same person at two
+ * sites appears twice. `id` is a stable identifier within the seed (currently
+ * the array index, but exposed as `id` so callers don't depend on that).
+ */
+export interface ContactRow extends ClientContact {
+  id: string
+}
+
+export function mockListAllContacts(): Promise<ContactRow[]> {
+  return delay(contacts.map((c, i) => ({ ...c, id: String(i) })))
 }

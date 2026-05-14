@@ -184,9 +184,15 @@
               <th v-if="key === 'date' && visible.date" @click="toggleSort('date')" class="proposals-list__sortable">
                 Date <SortIndicator :col="'date'" :sort="sort" />
               </th>
-              <th v-else-if="key === 'type' && visible.type">Type</th>
-              <th v-else-if="key === 'client' && visible.client">Client / Location</th>
-              <th v-else-if="key === 'project_name' && visible.project_name">Project Name</th>
+              <th v-else-if="key === 'type' && visible.type" @click="toggleSort('type')" class="proposals-list__sortable">
+                Type <SortIndicator :col="'type'" :sort="sort" />
+              </th>
+              <th v-else-if="key === 'client' && visible.client" @click="toggleSort('client')" class="proposals-list__sortable">
+                Client / Location <SortIndicator :col="'client'" :sort="sort" />
+              </th>
+              <th v-else-if="key === 'project_name' && visible.project_name" @click="toggleSort('project_name')" class="proposals-list__sortable">
+                Project Name <SortIndicator :col="'project_name'" :sort="sort" />
+              </th>
               <th v-else-if="key === 'job_codes' && visible.job_codes" class="proposals-list__jc-header" @click.stop="toggleJobCodePanel">
                 <span class="proposals-list__jc-header-inner">
                   Job Codes
@@ -202,13 +208,15 @@
                   </svg>
                 </span>
               </th>
-              <th v-else-if="key === 'status' && visible.status">Status</th>
+              <th v-else-if="key === 'status' && visible.status" @click="toggleSort('status')" class="proposals-list__sortable">
+                Status <SortIndicator :col="'status'" :sort="sort" />
+              </th>
               <th v-else-if="key === 'total' && visible.total" @click="toggleSort('total')" class="td--number proposals-list__sortable">
                 Total <SortIndicator :col="'total'" :sort="sort" />
               </th>
             </template>
-            <!-- Locked last column: Actions -->
-            <th><span class="visually-hidden">Actions</span></th>
+            <!-- Locked last column: Actions (pinned right) -->
+            <th class="td--actions"><span class="visually-hidden">Actions</span></th>
           </tr>
         </thead>
         <tbody>
@@ -265,7 +273,7 @@
               </td>
               <td v-else-if="key === 'total' && visible.total" class="td--number proposals-list__total">{{ formatCurrency(item.total) }}</td>
             </template>
-            <td @click.stop>
+            <td class="td--actions" @click.stop>
               <ActionButtons>
                 <button
                   v-if="auth.canEdit"
@@ -715,7 +723,7 @@ watch(filters, () => { page.value = 1 }, { deep: true })
 
 // ── Sort ──────────────────────────────────────────────────────────────────────
 
-type SortCol = 'number' | 'date' | 'total'
+type SortCol = 'number' | 'date' | 'type' | 'client' | 'project_name' | 'status' | 'total'
 const sort = ref<{ col: SortCol; dir: 'asc' | 'desc' }>({ col: 'date', dir: 'desc' })
 
 function toggleSort(col: SortCol) {
@@ -726,13 +734,32 @@ function toggleSort(col: SortCol) {
   }
 }
 
+// Workflow order for Status sort — matches the natural lifecycle of a proposal
+// (Draft → Sent → Accepted → Declined). Alphabetic order would feel arbitrary.
+const STATUS_ORDER: Record<ProposalStatus, number> = {
+  Draft: 0,
+  Sent: 1,
+  Accepted: 2,
+  Declined: 3,
+}
+
+const collator = new Intl.Collator(undefined, { sensitivity: 'base', numeric: true })
+
+function clientKey(p: ProposalListItem): string {
+  return (p.client_name || p.project_location || '').trim()
+}
+
 const sortedItems = computed(() => {
   const arr = filteredItems.value.slice()
   const { col, dir } = sort.value
   arr.sort((a, b) => {
     let cmp = 0
-    if (col === 'number') cmp = a.number.localeCompare(b.number)
+    if (col === 'number') cmp = collator.compare(a.number, b.number)
     else if (col === 'date') cmp = a.date.localeCompare(b.date)
+    else if (col === 'type') cmp = collator.compare(a.type, b.type)
+    else if (col === 'client') cmp = collator.compare(clientKey(a), clientKey(b))
+    else if (col === 'project_name') cmp = collator.compare(a.project_name ?? '', b.project_name ?? '')
+    else if (col === 'status') cmp = STATUS_ORDER[a.status] - STATUS_ORDER[b.status]
     else if (col === 'total') cmp = a.total - b.total
     return dir === 'asc' ? cmp : -cmp
   })
@@ -1076,8 +1103,16 @@ const SortIndicator = (props: { col: SortCol; sort: { col: SortCol; dir: 'asc' |
   background: var(--color-bg);
   border: 1px solid var(--color-border);
   border-radius: 8px;
-  /* No `overflow` here — it creates a sticky-containing block and traps the
-     sticky `<thead>` inside the card instead of pinning to the page scroll. */
+  /* Allow the table to scroll horizontally inside its card when columns
+     collectively exceed the available width. min-width: 0 lets the wrapper
+     shrink below the table's intrinsic width so the scrollbar actually appears
+     (without it, the wrapper grows to fit content and pushes the page wider).
+     Trade-off: <thead> can no longer be sticky to the page scroll (the wrap
+     becomes the sticky containing block); we accept this in exchange for
+     never losing access to columns. */
+  min-width: 0;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 .table {
@@ -1097,11 +1132,6 @@ const SortIndicator = (props: { col: SortCol; sort: { col: SortCol; dir: 'asc' |
   border-bottom: 1px solid var(--color-border);
   text-align: left;
   white-space: nowrap;
-  position: sticky;
-  /* Sits directly under the filter row — height set by JS at runtime via the
-     --filters-height variable on .proposals-list. */
-  top: var(--filters-height, 56px);
-  z-index: 3;
 }
 
 .proposals-list__sortable {
@@ -1268,12 +1298,38 @@ const SortIndicator = (props: { col: SortCol; sort: { col: SortCol; dir: 'asc' |
   border-bottom: none;
 }
 
+/* ── Pinned Actions column ──────────────────────────────────────────────────
+   The Actions column stays visible while the rest of the table scrolls
+   horizontally. We pin via position: sticky inside the overflow-x wrapper.
+   A solid background is required so scrolling content doesn't bleed through,
+   and a subtle left shadow signals there is more content underneath. */
+.td--actions {
+  position: sticky;
+  right: 0;
+  z-index: 2;
+  width: 1%;            /* shrink-to-fit — keeps the pinned column tight */
+  white-space: nowrap;
+  text-align: right;
+  background: var(--color-bg);
+  box-shadow: -8px 0 8px -8px rgba(15, 23, 42, 0.12);
+}
+
+.table thead th.td--actions {
+  background: var(--color-bg-subtle);
+}
+
 .proposals-list__row {
   cursor: pointer;
   transition: background 0.1s;
 }
 
 .proposals-list__row:hover {
+  background: var(--color-bg-subtle);
+}
+
+/* Row hover must also color the sticky cell, otherwise it shows the base
+   white over the hovered row. */
+.proposals-list__row:hover .td--actions {
   background: var(--color-bg-subtle);
 }
 
@@ -1352,6 +1408,9 @@ const SortIndicator = (props: { col: SortCol; sort: { col: SortCol; dir: 'asc' |
 @media (max-width: 900px) {
   .proposals-list {
     gap: 14px;
+    /* Make sure the page itself never grows wider than the viewport,
+       even if a child (like the wide table) tries to. */
+    min-width: 0;
   }
 
   .proposals-list__filters {
@@ -1374,9 +1433,13 @@ const SortIndicator = (props: { col: SortCol; sort: { col: SortCol; dir: 'asc' |
     min-width: 0;
   }
 
-  .proposals-list__clear {
+  .proposals-list__clear,
+  .proposals-list__columns-btn {
     grid-column: 1 / -1;
+    margin-left: 0;
+    justify-self: start;
   }
+
 }
 
 @media (max-width: 600px) {
@@ -1392,6 +1455,7 @@ const SortIndicator = (props: { col: SortCol; sort: { col: SortCol; dir: 'asc' |
   .proposals-list__header-actions {
     width: 100%;
     justify-content: flex-end;
+    flex-wrap: wrap;
   }
 }
 </style>

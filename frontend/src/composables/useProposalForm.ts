@@ -76,6 +76,10 @@ export function useProposalForm() {
   // ── Lookup state ─────────────────────────────────────────────────────────────
   // Holds the rows returned by /clients/lookup for the current Client Name
   const clientContactOptions = ref<ClientContact[]>([])
+  // Stable index of the picked contact within clientContactOptions, or -1 if
+  // none. Used by the Contact picker UI; survives address edits so we know
+  // which row's data is currently in the form.
+  const selectedContactIndex = ref<number>(-1)
   // City/state derived from the selected address (used to query tax rate)
   const lookupCity = ref<string>('')
   const lookupState = ref<string>('')
@@ -160,35 +164,74 @@ export function useProposalForm() {
     lookupState.value = c.state ?? ''
   }
 
+  function clearContactFields() {
+    address.value = ''
+    title.value = ''
+    businessName.value = ''
+    department.value = ''
+    phone.value = ''
+    email.value = ''
+    lookupCity.value = ''
+    lookupState.value = ''
+  }
+
   function onClientContactsLoaded(rows: ClientContact[]) {
     clientContactOptions.value = rows
+    selectedContactIndex.value = -1
     if (rows.length === 0) {
-      address.value = ''
-      title.value = ''
-      businessName.value = ''
-      department.value = ''
-      phone.value = ''
-      email.value = ''
-      lookupCity.value = ''
-      lookupState.value = ''
+      clearContactFields()
     } else if (rows.length === 1) {
+      selectedContactIndex.value = 0
       applyContact(rows[0])
     } else {
-      // multiple rows — clear contact fields, await Address selection
-      title.value = ''
-      businessName.value = ''
-      department.value = ''
-      phone.value = ''
-      email.value = ''
-      address.value = ''
-      lookupCity.value = ''
-      lookupState.value = ''
+      // multiple rows — clear contact fields, await Contact selection
+      clearContactFields()
     }
   }
 
-  function onAddressSelected(addr: string) {
-    const c = clientContactOptions.value.find((c) => c.address === addr)
+  // Pick a contact by its index in clientContactOptions. Index is the stable
+  // key (not address) because two contacts at the same client may share an
+  // address but differ in person/department/facility.
+  function onContactSelected(index: number) {
+    selectedContactIndex.value = index
+    const c = clientContactOptions.value[index]
     if (c) applyContact(c)
+  }
+
+  // Kept for backward compatibility with anything still calling the old API.
+  // Matches by address; not used by the new Contact picker.
+  function onAddressSelected(addr: string) {
+    const idx = clientContactOptions.value.findIndex((c) => c.address === addr)
+    if (idx >= 0) onContactSelected(idx)
+  }
+
+  /**
+   * Pick a contact row directly (used by the unified Client Name picker that
+   * lists one row per facility). This is the new canonical entry point now
+   * that the picker no longer goes through person-name → facility steps.
+   *
+   * Setting `peerRows` lets the form remember all rows for the same person —
+   * useful if downstream code still inspects `clientContactOptions`.
+   */
+  function onContactRowSelected(contact: ClientContact, peerRows?: ClientContact[]) {
+    clientName.value = contact.name ?? ''
+    const rows = peerRows && peerRows.length ? peerRows : [contact]
+    clientContactOptions.value = rows
+    const idx = rows.findIndex(
+      (r) => r === contact || (r.address === contact.address && r.facility === contact.facility),
+    )
+    selectedContactIndex.value = idx >= 0 ? idx : 0
+    applyContact(contact)
+  }
+
+  /**
+   * Clear the contact selection entirely (when the user blanks the picker).
+   */
+  function clearContactSelection() {
+    clientName.value = ''
+    clientContactOptions.value = []
+    selectedContactIndex.value = -1
+    clearContactFields()
   }
 
   function onDestinationSelected(dest: MPDestination) {
@@ -411,7 +454,7 @@ export function useProposalForm() {
     // MP
     reference, projectLocation, projectType,
     // Lookup
-    clientContactOptions, lookupCity, lookupState,
+    clientContactOptions, selectedContactIndex, lookupCity, lookupState,
     // Tax
     taxable, taxRate, taxRateEdited,
     // Line items
@@ -426,7 +469,8 @@ export function useProposalForm() {
     // Actions
     addStandardItem, removeStandardItem,
     addMPItem, removeMPItem,
-    onClientContactsLoaded, onAddressSelected,
+    onClientContactsLoaded, onContactSelected, onAddressSelected,
+    onContactRowSelected, clearContactSelection,
     onDestinationSelected,
     onTaxRateLoaded, onTaxRateUserEdit, onTaxableToggle,
     validate, buildPayload, loadProposal,

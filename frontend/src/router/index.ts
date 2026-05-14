@@ -88,6 +88,12 @@ const router = createRouter({
           meta: { requiresAuth: true, title: 'Clients' },
         },
         {
+          path: 'clients/:business',
+          name: 'client-detail',
+          component: () => import('../views/clients/ClientDetailView.vue'),
+          meta: { requiresAuth: true, title: 'Client' },
+        },
+        {
           path: 'taxes',
           name: 'taxes',
           component: () => import('../views/tax-rates/TaxRatesListView.vue'),

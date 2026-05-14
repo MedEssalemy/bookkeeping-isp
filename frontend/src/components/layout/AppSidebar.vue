@@ -516,6 +516,11 @@ const visibleNavGroups = computed<NavGroup[]>(() =>
 @media (max-width: 899px) {
   .sidebar {
     width: var(--sidebar-rail-width);
+    /* In the rail, the sign-out popup is anchored to the right of the rail
+       (left: 100%). The shell's default `overflow: hidden` would clip it
+       outside the 56px rail. .sidebar__nav already has its own overflow-y,
+       so we can safely let the shell overflow visibly here. */
+    overflow: visible;
   }
 
   .sidebar__app-name,
@@ -586,6 +591,16 @@ const visibleNavGroups = computed<NavGroup[]>(() =>
 
   .sidebar__user { justify-content: center; }
 
+  /* In the rail, the footer is only as wide as the rail (~56px). The popup
+     menu must escape that constraint or "Sign out" gets clipped. Anchor it to
+     the right of the rail and give it a real width. */
+  .sidebar__menu {
+    left: calc(100% - 4px);
+    right: auto;
+    width: 180px;
+    bottom: 8px;
+  }
+
   .nav-badge {
     position: absolute;
     top: 3px;
@@ -653,6 +668,14 @@ const visibleNavGroups = computed<NavGroup[]>(() =>
   }
 
   .sidebar.is-open .sidebar__user { justify-content: flex-start; }
+
+  /* Rail is expanded into a full sidebar — reset the rail's right-anchored menu. */
+  .sidebar.is-open .sidebar__menu {
+    left: 10px;
+    right: 10px;
+    width: auto;
+    bottom: calc(100% + 6px);
+  }
 
   .sidebar.is-open .nav-badge {
     position: static;
@@ -724,6 +747,14 @@ const visibleNavGroups = computed<NavGroup[]>(() =>
   }
 
   .sidebar__user { justify-content: flex-start; }
+
+  /* Drawer is full-width when open — reset the rail's right-anchored menu. */
+  .sidebar__menu {
+    left: 10px;
+    right: 10px;
+    width: auto;
+    bottom: calc(100% + 6px);
+  }
 
   .nav-badge {
     position: static;

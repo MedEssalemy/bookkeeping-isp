@@ -66,90 +66,85 @@
             </div>
           </div>
 
-          <!-- Status -->
-          <BaseSelect
+          <!-- Status: choice list. Built-in values (Draft / Sent / Accepted /
+               Declined) cannot be deleted in config, but extra statuses can be
+               added later from /settings. -->
+          <ComboSelect
             v-model="form.status.value"
             label="Status"
             :options="STATUS_OPTIONS"
+            optionLabel="label"
+            optionValue="value"
+            addNewLabel="Add new status…"
+            :addNewTo="{ name: 'settings', query: { section: 'proposal-statuses' } }"
           />
         </div>
 
         <!-- ── Standard-specific fields ───────────────────────────────────── -->
         <template v-if="form.type.value === 'Standard'">
           <div class="proposal-form__grid">
-            <!-- Client Name (combobox) -->
-            <div class="field proposal-form__client-field">
-              <label class="field__label">Client Name <span class="field__required">*</span></label>
-              <div class="proposal-form__autocomplete">
-                <input
-                  v-model="form.clientName.value"
-                  class="field__input"
-                  :class="{ 'field__input--error': form.errors.value.clientName }"
-                  type="text"
-                  placeholder="Type client name…"
-                  @input="onClientNameInput"
-                  @focus="showClientDropdown = clientNameResults.length > 0"
-                  @blur="onClientNameBlur"
-                />
-                <div v-if="clientNameResults.length && showClientDropdown" class="proposal-form__dropdown">
-                  <div
-                    v-for="n in clientNameResults"
-                    :key="n"
-                    class="proposal-form__dropdown-item"
-                    @mousedown.prevent="onPickClientName(n)"
-                  >{{ n }}</div>
+            <!-- Client Name: unified contact picker. One row per facility, so
+                 picking immediately fills every downstream contact field.
+                 Downstream fields are locked — they only ever come from the
+                 selected contact. To add a contact, use "Add new contact…"
+                 which routes to the Clients page. -->
+            <ComboSelect
+              :modelValue="selectedContactId"
+              label="Client Name"
+              required
+              :options="contactOptions"
+              optionLabel="label"
+              optionValue="value"
+              placeholder="Select a contact…"
+              searchable
+              showClear
+              filterPlaceholder="Search name, business, facility, address…"
+              :error="form.errors.value.clientName"
+              addNewLabel="Add new contact…"
+              :addNewTo="{ name: 'clients' }"
+              @update:modelValue="onContactPicked"
+            >
+              <template #option="{ option }">
+                <div class="contact-option">
+                  <div class="contact-option__primary">{{ option.primary }}</div>
+                  <div class="contact-option__secondary">{{ option.secondary }}</div>
                 </div>
-              </div>
-              <span v-if="form.errors.value.clientName" class="field__error">{{ form.errors.value.clientName }}</span>
-            </div>
-
-            <!-- Address (combobox: dropdown if >1 row, free input otherwise) -->
-            <div class="field">
-              <label class="field__label">Address <span class="field__required">*</span></label>
-              <template v-if="form.clientContactOptions.value.length > 1">
-                <select
-                  class="field__select"
-                  :class="{ 'field__input--error': form.errors.value.address }"
-                  :value="form.address.value"
-                  @change="onAddressSelect($event)"
-                >
-                  <option value="">Select address…</option>
-                  <option
-                    v-for="c in form.clientContactOptions.value"
-                    :key="c.address"
-                    :value="c.address"
-                  >{{ c.address }}{{ c.city ? `, ${c.city}` : '' }}{{ c.state ? `, ${c.state}` : '' }}</option>
-                </select>
               </template>
-              <template v-else>
-                <input
-                  v-model="form.address.value"
-                  class="field__input"
-                  :class="{ 'field__input--error': form.errors.value.address }"
-                  type="text"
-                  placeholder="Address"
-                />
+              <template #value="{ value, placeholder }">
+                <template v-if="value === null || value === undefined">
+                  <span class="contact-option__placeholder">{{ placeholder }}</span>
+                </template>
+                <template v-else>
+                  <div class="contact-option contact-option--trigger">
+                    <div class="contact-option__primary">{{ selectedContactLabel.primary }}</div>
+                    <div class="contact-option__secondary">{{ selectedContactLabel.secondary }}</div>
+                  </div>
+                </template>
               </template>
-              <span v-if="form.errors.value.address" class="field__error">{{ form.errors.value.address }}</span>
-            </div>
+            </ComboSelect>
 
-            <!-- Title -->
-            <BaseInput v-model="form.title.value" label="Title" />
+            <!-- Address: locked / autofilled from the picked contact. No
+                 asterisk — it isn't a user-input field anymore. -->
+            <BaseInput v-model="form.address.value" label="Address" disabled />
 
-            <!-- Business Name -->
-            <BaseInput v-model="form.businessName.value" label="Business Name" />
+            <!-- Title (locked) -->
+            <BaseInput v-model="form.title.value" label="Title" disabled />
 
-            <!-- Department -->
-            <BaseInput v-model="form.department.value" label="Department" />
+            <!-- Business Name (locked) -->
+            <BaseInput v-model="form.businessName.value" label="Business Name" disabled />
 
-            <!-- Phone -->
-            <BaseInput v-model="form.phone.value" label="Phone" />
+            <!-- Department (locked) -->
+            <BaseInput v-model="form.department.value" label="Department" disabled />
 
-            <!-- Email -->
+            <!-- Phone (locked) -->
+            <BaseInput v-model="form.phone.value" label="Phone" disabled />
+
+            <!-- Email (locked) -->
             <BaseInput
               v-model="form.email.value"
               label="Email"
               type="email"
+              disabled
               :error="form.errors.value.email"
             />
 
@@ -170,25 +165,38 @@
         <!-- ── MP-specific fields ──────────────────────────────────────────── -->
         <template v-else>
           <div class="proposal-form__grid">
-            <!-- Reference -->
-            <BaseInput v-model="form.reference.value" label="Reference" />
+            <!-- Reference: choice list with override (editable) + "Add new"
+                 footer that routes to the config page. Presets are local for
+                 now; the API will supply them in a later phase. -->
+            <ComboSelect
+              v-model="form.reference.value"
+              label="Reference"
+              :options="REFERENCE_OPTIONS"
+              optionLabel="label"
+              optionValue="value"
+              placeholder="Select or type a reference…"
+              editable
+              addNewLabel="Add new reference…"
+              :addNewTo="{ name: 'settings', query: { section: 'references' } }"
+            />
 
-            <!-- Project Location (select from mp_destinations) -->
-            <div class="field">
-              <label class="field__label">Project Location</label>
-              <select
-                class="field__select"
-                :value="form.projectLocation.value"
-                @change="onDestinationSelect($event)"
-              >
-                <option value="">Select location…</option>
-                <option
-                  v-for="dest in mpDestinations"
-                  :key="dest.id"
-                  :value="dest.final_destination"
-                >{{ dest.final_destination }}</option>
-              </select>
-            </div>
+            <!-- Project Location: choice list backed by mp_destinations.
+                 Users can also type a custom location. "Add new" jumps to the
+                 config page where destinations are managed. -->
+            <ComboSelect
+              :modelValue="form.projectLocation.value"
+              label="Project Location"
+              :options="mpDestinationOptions"
+              optionLabel="label"
+              optionValue="value"
+              placeholder="Select or type a location…"
+              editable
+              searchable
+              filterPlaceholder="Search locations…"
+              addNewLabel="Add new location…"
+              :addNewTo="{ name: 'settings', query: { section: 'mp-destinations' } }"
+              @update:modelValue="onDestinationPicked"
+            />
 
             <!-- Address (auto-filled from selected location, editable) -->
             <BaseInput v-model="form.address.value" label="Address" />
@@ -321,6 +329,7 @@
       @confirm="onAcceptedCreatePO"
       @cancel="onAcceptedJustSave"
     />
+
   </div>
 </template>
 
@@ -335,10 +344,10 @@ import {
   useNextProposalNumber,
 } from '../../api/proposals'
 import { useMPDestinations } from '../../api/mpDestinations'
-import { useClientNameSearch, useClientLookup } from '../../api/clients'
+import { useAllContacts, type ContactRow } from '../../api/clients'
 import { useTaxRateLookup } from '../../api/taxRates'
 import BaseInput from '../../components/base/BaseInput.vue'
-import BaseSelect from '../../components/base/BaseSelect.vue'
+import ComboSelect from '../../components/base/ComboSelect.vue'
 import BaseDatePicker from '../../components/base/BaseDatePicker.vue'
 import RichTextEditor from '../../components/base/RichTextEditor.vue'
 import ConfirmModal from '../../components/base/ConfirmModal.vue'
@@ -359,9 +368,16 @@ const { data: mpDestData } = useMPDestinations()
 const mpDestinations = ref<MPDestination[]>([])
 watch(mpDestData, (v) => { if (v) mpDestinations.value = v }, { immediate: true })
 
-function onDestinationSelect(e: Event) {
-  const val = (e.target as HTMLSelectElement).value
-  const dest = mpDestinations.value.find((d) => d.final_destination === val)
+const mpDestinationOptions = computed(() =>
+  mpDestinations.value.map((d) => ({ label: d.final_destination, value: d.final_destination }))
+)
+
+function onDestinationPicked(val: unknown) {
+  const value = (val ?? '') as string
+  form.projectLocation.value = value
+  // Address autofill only applies when the user picked a known destination.
+  // For a custom typed value, we leave the address field as-is.
+  const dest = mpDestinations.value.find((d) => d.final_destination === value)
   if (dest) form.onDestinationSelected(dest)
 }
 
@@ -384,42 +400,83 @@ watch(existingProposal, (p) => {
   }
 }, { immediate: true })
 
-// ── Client name search ────────────────────────────────────────────────────────
+// ── Contacts (unified Client Name picker) ─────────────────────────────────────
+// We load every contact row once and let the ComboSelect filter in-place.
+// 85 rows is well within what PrimeVue's filter handles smoothly; if the table
+// grows, swap this for a server-side search endpoint.
 
-const clientNameQuery = ref('')
-const showClientDropdown = ref(false)
-const { data: clientNamesData } = useClientNameSearch(clientNameQuery)
-const clientNameResults = computed<string[]>(() => clientNamesData.value ?? [])
+const { data: allContactsData } = useAllContacts()
+const allContacts = computed<ContactRow[]>(() => allContactsData.value ?? [])
 
-let searchTimeout: ReturnType<typeof setTimeout> | null = null
-function onClientNameInput() {
-  if (searchTimeout) clearTimeout(searchTimeout)
-  searchTimeout = setTimeout(() => {
-    clientNameQuery.value = form.clientName.value.trim()
-    showClientDropdown.value = !!clientNameQuery.value
-  }, 150)
-}
-function onClientNameBlur() {
-  // Slight delay so a click on the dropdown can register
-  setTimeout(() => { showClientDropdown.value = false }, 100)
+const selectedContactId = ref<string | null>(null)
+
+function contactPrimaryLabel(c: ContactRow): string {
+  // "Person — Business" is the most useful identifier line; falls back if
+  // either is missing.
+  const parts = [c.name, c.business_name].filter(Boolean)
+  return parts.length ? parts.join(' — ') : (c.facility || c.address || '(unnamed contact)')
 }
 
-// ── Client lookup (on selection) ──────────────────────────────────────────────
-const selectedClientName = ref('')
-const { data: clientContactsData } = useClientLookup(selectedClientName)
-watch(clientContactsData, (rows) => {
-  if (rows) form.onClientContactsLoaded(rows)
+function contactSecondaryLabel(c: ContactRow): string {
+  const parts: string[] = []
+  if (c.facility) parts.push(c.facility)
+  const addr = [c.address, c.city, c.state].filter(Boolean).join(', ')
+  if (addr) parts.push(addr)
+  return parts.join(' · ')
+}
+
+const contactOptions = computed(() =>
+  allContacts.value.map((c) => {
+    const primary = contactPrimaryLabel(c)
+    const secondary = contactSecondaryLabel(c)
+    return {
+      value: c.id,
+      primary,
+      secondary,
+      // Flat label powers PrimeVue Select's built-in text filter — match on
+      // name, business, facility, dept, and address all at once.
+      label: [primary, secondary, c.department, c.title].filter(Boolean).join(' '),
+    }
+  }),
+)
+
+const selectedContactLabel = computed(() => {
+  const id = selectedContactId.value
+  if (!id) return { primary: '', secondary: '' }
+  const c = allContacts.value.find((x) => x.id === id)
+  if (!c) return { primary: '', secondary: '' }
+  return { primary: contactPrimaryLabel(c), secondary: contactSecondaryLabel(c) }
 })
 
-function onPickClientName(name: string) {
-  form.clientName.value = name
-  selectedClientName.value = name
-  showClientDropdown.value = false
+function onContactPicked(val: unknown) {
+  const id = (val as string | null | undefined) ?? null
+  selectedContactId.value = id
+  if (!id) {
+    form.clearContactSelection()
+    return
+  }
+  const contact = allContacts.value.find((c) => c.id === id)
+  if (!contact) return
+  // Peer rows for the same person — keeps composable state consistent with
+  // the older "list of contacts for the picked person" model.
+  const peers = allContacts.value.filter((c) => c.name === contact.name)
+  form.onContactRowSelected(contact, peers)
 }
 
-function onAddressSelect(e: Event) {
-  form.onAddressSelected((e.target as HTMLSelectElement).value)
-}
+// When loading an existing proposal in edit mode, sync the picker selection
+// to the saved data — match by clientName + address + facility.
+watch(
+  [allContacts, () => form.clientName.value, () => form.address.value],
+  ([rows, name, address]) => {
+    if (selectedContactId.value) return // user has already picked
+    if (!rows.length || !name) return
+    const match = rows.find(
+      (c) => c.name === name && (!address || c.address === address),
+    )
+    if (match) selectedContactId.value = match.id
+  },
+  { immediate: true },
+)
 
 // ── Tax-rate lookup (driven by lookupCity / lookupState) ─────────────────────
 const { data: taxRateData } = useTaxRateLookup(form.lookupCity, form.lookupState)
@@ -458,6 +515,19 @@ const STATUS_OPTIONS = [
   { label: 'Sent', value: 'Sent' },
   { label: 'Accepted', value: 'Accepted' },
   { label: 'Declined', value: 'Declined' },
+]
+
+// ── Reference presets (MP only) ───────────────────────────────────────────────
+// Hard-coded until the API ships. Users can also type a custom value.
+const REFERENCE_OPTIONS = [
+  {
+    label: 'Proposal for Medical Physicist Professional Services',
+    value: 'Proposal for Medical Physicist Professional Services',
+  },
+  {
+    label: 'Proposal for Medical Physicist',
+    value: 'Proposal for Medical Physicist',
+  },
 ]
 
 // ── Save ──────────────────────────────────────────────────────────────────────
@@ -628,42 +698,47 @@ function handleCancel() {
   width: 180px;
 }
 
-.proposal-form__client-field {
-  position: relative;
-}
-
-.proposal-form__autocomplete {
-  position: relative;
-}
-
-.proposal-form__dropdown {
-  position: absolute;
-  top: calc(100% + 4px);
-  left: 0;
-  right: 0;
-  background: var(--color-bg);
-  border: 1px solid var(--color-border);
-  border-radius: 6px;
-  box-shadow: var(--shadow-card);
-  z-index: 20;
-  overflow: hidden;
-  max-height: 220px;
-  overflow-y: auto;
-}
-
-.proposal-form__dropdown-item {
-  padding: 8px 12px;
-  font-size: 13px;
-  cursor: pointer;
-  transition: background 0.1s;
-}
-
-.proposal-form__dropdown-item:hover {
-  background: var(--color-bg-subtle);
-}
-
 .field__required {
   color: var(--color-error);
+}
+
+/* ── Contact picker option rows ──────────────────────────────────────────── */
+.contact-option {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.contact-option__primary {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--color-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.contact-option__secondary {
+  font-size: 11.5px;
+  color: var(--color-text-subtle);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Trigger variant: tighter, single visible line on the field itself. */
+.contact-option--trigger {
+  gap: 0;
+}
+
+.contact-option--trigger .contact-option__secondary {
+  font-size: 11px;
+  margin-top: -1px;
+}
+
+.contact-option__placeholder {
+  color: var(--color-text-subtle);
 }
 
 @media (max-width: 700px) {

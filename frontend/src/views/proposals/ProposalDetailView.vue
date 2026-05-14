@@ -113,15 +113,15 @@
       </div>
 
       <!-- Notes -->
-      <div v-if="proposal.notes" class="proposal-detail__section card card--padded">
+      <div v-if="hasRichContent(proposal.notes)" class="proposal-detail__section card card--padded">
         <h2 class="proposal-detail__section-title">Notes</h2>
-        <div class="proposal-detail__rich-content" v-html="proposal.notes" />
+        <div class="proposal-detail__rich-content proposal-rich-content" v-html="proposal.notes" />
       </div>
 
       <!-- Services Provided (MP only) -->
-      <div v-if="proposal.type === 'MP' && proposal.services_provided" class="proposal-detail__section card card--padded">
+      <div v-if="proposal.type === 'MP' && hasRichContent(proposal.services_provided)" class="proposal-detail__section card card--padded">
         <h2 class="proposal-detail__section-title">Services Provided</h2>
-        <div class="proposal-detail__rich-content" v-html="proposal.services_provided" />
+        <div class="proposal-detail__rich-content proposal-rich-content" v-html="proposal.services_provided" />
       </div>
 
     </template>
@@ -203,12 +203,35 @@ function formatDate(iso: string) {
   return new Date(iso).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
 }
 
-// Lightweight inline field renderer
-const DetailField = (props: { label: string; value?: string | null }) =>
-  h('div', { class: 'proposal-detail__field' }, [
+/**
+ * True when a TipTap rich-text field has visible content.
+ *
+ * The editor stores HTML even when "empty": typing then deleting produces
+ * `<p></p>`, hitting Enter then deleting gives `<p><br></p>`, etc. A plain
+ * truthiness check lets those through and renders an empty Notes section.
+ * Strip tags + entities + whitespace and check what's actually visible.
+ */
+function hasRichContent(html?: string | null): boolean {
+  if (!html) return false
+  const stripped = html
+    .replace(/<[^>]*>/g, '')        // tags
+    .replace(/&nbsp;/gi, ' ')       // non-breaking spaces
+    .replace(/\s+/g, '')            // all whitespace
+  return stripped.length > 0
+}
+
+// Lightweight inline field renderer.
+// Empty fields (null, undefined, or '') don't render at all — the detail page
+// acts as a read-only preview, so blank rows are noise. Sections that have
+// every field blank just collapse to a smaller grid.
+const DetailField = (props: { label: string; value?: string | null }) => {
+  const v = props.value
+  if (v === null || v === undefined || v === '') return null
+  return h('div', { class: 'proposal-detail__field' }, [
     h('span', { class: 'proposal-detail__label' }, props.label),
-    h('span', { class: 'proposal-detail__value' }, props.value || '—'),
+    h('span', { class: 'proposal-detail__value' }, v),
   ])
+}
 </script>
 
 <style scoped>
