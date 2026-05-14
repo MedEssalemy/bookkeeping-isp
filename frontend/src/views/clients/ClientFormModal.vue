@@ -14,30 +14,32 @@
       </div>
 
       <div class="client-form__grid">
-        <BaseInput
+        <SuggestInput
           v-model="form.name"
           label="Client Name"
+          :options="suggestions.name"
           required
           :error="errors.name"
-          autofocus
         />
 
-        <BaseInput
+        <SuggestInput
           v-model="form.business_name"
           label="Business Name"
+          :options="suggestions.business_name"
           required
           :error="errors.business_name"
         />
 
-        <BaseInput v-model="form.facility" label="Facility" />
-        <BaseInput v-model="form.department" label="Department" />
-        <BaseInput v-model="form.title" label="Title" />
-        <BaseInput v-model="form.phone" label="Phone" />
+        <SuggestInput v-model="form.facility" label="Facility" :options="suggestions.facility" />
+        <SuggestInput v-model="form.department" label="Department" :options="suggestions.department" />
+        <SuggestInput v-model="form.title" label="Title" :options="suggestions.title" />
+        <SuggestInput v-model="form.phone" label="Phone" type="tel" :options="suggestions.phone" />
 
-        <BaseInput
+        <SuggestInput
           v-model="form.email"
           label="Email"
           type="email"
+          :options="suggestions.email"
           :error="errors.email"
         />
 
@@ -45,13 +47,14 @@
         <div class="client-form__group client-form__group--full">
           <h3 class="client-form__group-title">Address</h3>
           <div class="client-form__address-grid">
-            <BaseInput
+            <SuggestInput
               v-model="form.address"
               label="Street Address"
+              :options="suggestions.address"
               class="client-form__address-street"
             />
-            <BaseInput v-model="form.city" label="City" />
-            <BaseInput v-model="form.county" label="County" />
+            <SuggestInput v-model="form.city" label="City" :options="suggestions.city" />
+            <SuggestInput v-model="form.county" label="County" :options="suggestions.county" />
             <ComboSelect
               :modelValue="form.state"
               label="State"
@@ -63,7 +66,7 @@
               filterPlaceholder="Search states…"
               @update:modelValue="(v) => (form.state = (v as string) ?? '')"
             />
-            <BaseInput v-model="form.zip" label="Zip" />
+            <SuggestInput v-model="form.zip" label="Zip" :options="suggestions.zip" />
           </div>
           <p v-if="previewAddress" class="client-form__preview">
             <span class="client-form__preview-label">Preview:</span>
@@ -97,11 +100,12 @@
 <script setup lang="ts">
 import { computed, reactive, watch } from 'vue'
 import Dialog from 'primevue/dialog'
-import BaseInput from '../../components/base/BaseInput.vue'
+import SuggestInput from '../../components/base/SuggestInput.vue'
 import ComboSelect from '../../components/base/ComboSelect.vue'
 import {
   useAddContact,
   useUpdateContact,
+  useAllContacts,
   type ContactRow,
   type AddContactInput,
 } from '../../api/clients'
@@ -177,6 +181,38 @@ watch(() => props.visible, (open) => {
     props.contact ? fromContact(props.contact) : props.initial ?? {},
   )
   errors.name = errors.business_name = errors.email = undefined
+})
+
+// ── Suggestions sourced from existing clients ────────────────────────────────
+// Each text field shows a typeahead of values already used in that column
+// across other client rows. Users can still type a brand-new value.
+const SUGGEST_FIELDS = [
+  'name', 'business_name', 'facility', 'department', 'title', 'phone', 'email',
+  'address', 'city', 'county', 'zip',
+] as const
+
+type SuggestField = typeof SUGGEST_FIELDS[number]
+
+const { data: allContacts } = useAllContacts()
+
+const suggestions = computed<Record<SuggestField, string[]>>(() => {
+  const rows = allContacts.value ?? []
+  const editingId = props.contact?.id
+  const out = Object.fromEntries(
+    SUGGEST_FIELDS.map((f) => [f, new Set<string>()]),
+  ) as Record<SuggestField, Set<string>>
+
+  for (const row of rows) {
+    if (editingId && row.id === editingId) continue
+    for (const f of SUGGEST_FIELDS) {
+      const v = (row as unknown as Record<string, unknown>)[f]
+      if (typeof v === 'string' && v.trim()) out[f].add(v.trim())
+    }
+  }
+
+  return Object.fromEntries(
+    SUGGEST_FIELDS.map((f) => [f, Array.from(out[f]).sort((a, b) => a.localeCompare(b))]),
+  ) as Record<SuggestField, string[]>
 })
 
 // ── States dropdown ──────────────────────────────────────────────────────────
