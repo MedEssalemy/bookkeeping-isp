@@ -154,7 +154,10 @@ export function useProposalForm() {
     // Spec §4.7.1: "manual edit does NOT reset on subsequent lookups" — but here
     // we're handling the *first* time the user picks. Overwrite everything from
     // the contact record; subsequent lookups in the same session preserve overrides.
-    address.value = c.address ?? ''
+    // Prefer the joined full-address string ("Street, City, ST Zip") when the
+    // contact provides one. Falls back to the bare street address for older
+    // rows that pre-date the address_full field.
+    address.value = c.address_full ?? c.address ?? ''
     title.value = c.title ?? ''
     businessName.value = c.business_name ?? ''
     department.value = c.department ?? ''

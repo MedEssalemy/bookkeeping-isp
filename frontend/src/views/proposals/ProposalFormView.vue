@@ -86,8 +86,8 @@
             <!-- Client Name: unified contact picker. One row per facility, so
                  picking immediately fills every downstream contact field.
                  Downstream fields are locked — they only ever come from the
-                 selected contact. To add a contact, use "Add new contact…"
-                 which routes to the Clients page. -->
+                 selected contact. "Add new contact…" opens a modal inline so
+                 the user can stay in the proposal flow. -->
             <ComboSelect
               :modelValue="selectedContactId"
               label="Client Name"
@@ -101,8 +101,8 @@
               filterPlaceholder="Search name, business, facility, address…"
               :error="form.errors.value.clientName"
               addNewLabel="Add new contact…"
-              :addNewTo="{ name: 'clients' }"
               @update:modelValue="onContactPicked"
+              @add-new="addClientModalOpen = true"
             >
               <template #option="{ option }">
                 <div class="contact-option">
@@ -330,6 +330,14 @@
       @cancel="onAcceptedJustSave"
     />
 
+    <!-- Add Client modal: opened from the Client Name picker's "+ Add new
+         contact…" footer. After save, the new row is auto-selected so the
+         form fills without an extra click. -->
+    <ClientFormModal
+      v-model:visible="addClientModalOpen"
+      @created="onClientAddedFromPicker"
+    />
+
   </div>
 </template>
 
@@ -351,6 +359,7 @@ import ComboSelect from '../../components/base/ComboSelect.vue'
 import BaseDatePicker from '../../components/base/BaseDatePicker.vue'
 import RichTextEditor from '../../components/base/RichTextEditor.vue'
 import ConfirmModal from '../../components/base/ConfirmModal.vue'
+import ClientFormModal from '../clients/ClientFormModal.vue'
 import LineItemsTable from './components/LineItemsTable.vue'
 import TotalsCards from './components/TotalsCards.vue'
 import type { MPDestination, ProposalType } from '../../types/proposal'
@@ -420,7 +429,9 @@ function contactPrimaryLabel(c: ContactRow): string {
 function contactSecondaryLabel(c: ContactRow): string {
   const parts: string[] = []
   if (c.facility) parts.push(c.facility)
-  const addr = [c.address, c.city, c.state].filter(Boolean).join(', ')
+  // Prefer the joined full address (same string the locked Address field
+  // gets) so what the user sees in the picker matches what fills the form.
+  const addr = c.address_full || [c.address, c.city, c.state].filter(Boolean).join(', ')
   if (addr) parts.push(addr)
   return parts.join(' · ')
 }
@@ -463,6 +474,17 @@ function onContactPicked(val: unknown) {
   form.onContactRowSelected(contact, peers)
 }
 
+// ── Add-client modal (opened from the picker's "+ Add new contact…") ────────
+const addClientModalOpen = ref(false)
+
+function onClientAddedFromPicker(c: ContactRow) {
+  // Auto-select the freshly created contact. We use the returned row directly
+  // because allContacts may still be refetching after the mutation invalidated
+  // its query. The next refetch will include the row anyway.
+  selectedContactId.value = c.id
+  form.onContactRowSelected(c, [c])
+}
+
 // When loading an existing proposal in edit mode, sync the picker selection
 // to the saved data — match by clientName + address + facility.
 watch(
@@ -470,8 +492,11 @@ watch(
   ([rows, name, address]) => {
     if (selectedContactId.value) return // user has already picked
     if (!rows.length || !name) return
+    // Match against either the joined full address (current model) or the
+    // bare street address (older saved data) so edit-mode rehydration works
+    // for both.
     const match = rows.find(
-      (c) => c.name === name && (!address || c.address === address),
+      (c) => c.name === name && (!address || c.address_full === address || c.address === address),
     )
     if (match) selectedContactId.value = match.id
   },

@@ -16,6 +16,8 @@ export const SEEDED_CLIENT_CONTACTS: ClientContact[] = [
     city: 'San Leandro',
     county: 'Alameda',
     state: 'California',
+    zip: '94577',
+    address_full: '2500 Merced Street, San Leandro, CA 94577',
   },
   {
     name: 'Ali Gharaviram',
@@ -29,6 +31,8 @@ export const SEEDED_CLIENT_CONTACTS: ClientContact[] = [
     city: 'Sacramento',
     county: 'Placer',
     state: 'California',
+    zip: '95825',
+    address_full: '10305 Promenade Pkwy, Sacramento, CA 95825',
   },
   {
     name: 'Ali Gharaviram',
@@ -42,6 +46,8 @@ export const SEEDED_CLIENT_CONTACTS: ClientContact[] = [
     city: 'Sacramento',
     county: 'Placer',
     state: 'California',
+    zip: '95825',
+    address_full: '6600 Bruceville Road, Sacramento, CA 95825',
   },
   {
     name: 'Andrew J Davis',
@@ -55,6 +61,8 @@ export const SEEDED_CLIENT_CONTACTS: ClientContact[] = [
     city: 'Roseville',
     county: 'Placer',
     state: 'California',
+    zip: '95661',
+    address_full: '1600 Eureka Rd, Roseville, CA 95661',
   },
   {
     name: 'Ann Vales, MHA',
@@ -68,6 +76,8 @@ export const SEEDED_CLIENT_CONTACTS: ClientContact[] = [
     city: 'Modesto',
     county: 'Stanislaus',
     state: 'California',
+    zip: '95356',
+    address_full: '4601 Dale Rd., Modesto, CA 95356',
   },
   {
     name: 'Bria Jacquet',
@@ -81,6 +91,8 @@ export const SEEDED_CLIENT_CONTACTS: ClientContact[] = [
     city: 'Pinole',
     county: 'Contra Costa',
     state: 'California',
+    zip: '94564',
+    address_full: '1301 Pinole Valley Rd, Pinole, CA 94564',
   },
   {
     name: 'Bria Jacquet',
@@ -94,6 +106,8 @@ export const SEEDED_CLIENT_CONTACTS: ClientContact[] = [
     city: 'Oakland',
     county: 'Alameda',
     state: 'California',
+    zip: '94611',
+    address_full: '275 W. Macarthur Blvd., Oakland, CA 94611',
   },
   {
     name: 'Bria Jacquet',
@@ -107,6 +121,8 @@ export const SEEDED_CLIENT_CONTACTS: ClientContact[] = [
     city: 'Oakland',
     county: 'Alameda',
     state: 'California',
+    zip: '94611',
+    address_full: '3600 Broadway, Oakland, CA 94611',
   },
   {
     name: 'Bria Jacquet',
@@ -120,6 +136,8 @@ export const SEEDED_CLIENT_CONTACTS: ClientContact[] = [
     city: 'Richmond',
     county: 'Contra Costa',
     state: 'California',
+    zip: '94801',
+    address_full: '901 Nevin Ave, Richmond, CA 94801',
   },
   {
     name: 'Bria Pometta',
@@ -133,5 +151,7 @@ export const SEEDED_CLIENT_CONTACTS: ClientContact[] = [
     city: 'Berkeley',
     county: 'Alameda',
     state: 'California',
+    zip: '94703',
+    address_full: '1743 Alcatraz Avenue, Berkeley, CA 94703',
   },
 ]

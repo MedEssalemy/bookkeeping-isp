@@ -176,7 +176,7 @@ export interface ProposalPayload {
 export interface ClientContact {
   /** The contact person's name (CSV column "Client Name"). */
   name: string
-  /** The street address tied to this row. */
+  /** Street address — line 1 only. CSV column "Street Address". */
   address: string
   title?: string
   /** The parent organization (CSV column "Business Name"). */
@@ -187,6 +187,16 @@ export interface ClientContact {
   city?: string
   county?: string
   state?: string
+  /** US ZIP code (5 digits, or "12345-6789" extended). CSV column "Zip". */
+  zip?: string
+  /**
+   * Full mailing-address string, joined for display:
+   * "Street, City, ST Zip" (US-standard format). The proposal form copies
+   * this into the locked Address field on contact pick. Stored on the row
+   * (rather than computed) so the CSV round-trip is stable and any future
+   * edits to phrasing flow through one place. CSV column "Address".
+   */
+  address_full?: string
   /**
    * Specific site or sub-location within the business (e.g. for Kaiser
    * Permanente: "Elk Grove MOB" vs. "South Sacramento MC"). Used to
