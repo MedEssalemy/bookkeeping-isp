@@ -177,16 +177,24 @@ interface NavGroup {
 const NAV_GROUPS: NavGroup[] = [
   {
     items: [
-      { key: 'overview',     label: 'Overview',          to: '/',              icon: icons.overview,     exact: true },
+      { key: 'overview',       label: 'Overview',          to: '/',                    icon: icons.overview,     exact: true },
     ],
   },
   {
-    label: 'Inputs',
+    label: 'Clients · Income',
     items: [
-      { key: 'proposals',    label: 'Proposals',         to: '/proposals',     icon: icons.proposals },
-      { key: 'pos',          label: 'Purchase Orders',   to: '/pos',           icon: icons.pos },
-      { key: 'invoices',     label: 'Invoices',          to: '/invoices',      icon: icons.invoices },
-      { key: 'expenses',     label: 'Expenses',          to: '/expenses',      icon: icons.expenses },
+      { key: 'proposals-issued', label: 'Proposals',       to: '/proposals/issued',    icon: icons.proposals },
+      { key: 'pos-received',     label: 'Purchase Orders', to: '/pos/received',        icon: icons.pos },
+      { key: 'invoices-issued',  label: 'Invoices',        to: '/invoices/issued',     icon: icons.invoices },
+    ],
+  },
+  {
+    label: 'Contractors · Expenses',
+    items: [
+      { key: 'proposals-received', label: 'Proposals',       to: '/proposals/received', icon: icons.proposals },
+      { key: 'pos-issued',         label: 'Purchase Orders', to: '/pos/issued',         icon: icons.pos },
+      { key: 'invoices-received',  label: 'Invoices',        to: '/invoices/received',  icon: icons.invoices },
+      { key: 'expenses',           label: 'Expenses',        to: '/expenses',           icon: icons.expenses },
     ],
   },
   {
@@ -200,6 +208,7 @@ const NAV_GROUPS: NavGroup[] = [
     label: 'Settings',
     items: [
       { key: 'clients',      label: 'Clients',           to: '/clients',       icon: icons.clients },
+      { key: 'contractors',  label: 'Contractors',       to: '/contractors',   icon: icons.clients },
       { key: 'settings',     label: 'Configuration',     to: '/settings',      icon: icons.settings, adminOnly: true },
     ],
   },

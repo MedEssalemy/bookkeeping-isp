@@ -72,11 +72,9 @@
           <ComboSelect
             v-model="form.status.value"
             label="Status"
-            :options="STATUS_OPTIONS"
+            :options="statusOptions"
             optionLabel="label"
             optionValue="value"
-            addNewLabel="Add new status…"
-            :addNewTo="{ name: 'settings', query: { section: 'proposal-statuses' } }"
           />
         </div>
 
@@ -90,7 +88,7 @@
                  the user can stay in the proposal flow. -->
             <ComboSelect
               :modelValue="selectedContactId"
-              label="Client Name"
+              :label="counterpartyLabel"
               required
               :options="contactOptions"
               optionLabel="label"
@@ -100,7 +98,7 @@
               showClear
               filterPlaceholder="Search name, business, facility, address…"
               :error="form.errors.value.clientName"
-              addNewLabel="Add new contact…"
+              :addNewLabel="isReceived ? undefined : 'Add new contact…'"
               @update:modelValue="onContactPicked"
               @add-new="addClientModalOpen = true"
             >
@@ -171,7 +169,7 @@
             <ComboSelect
               v-model="form.reference.value"
               label="Reference"
-              :options="REFERENCE_OPTIONS"
+              :options="referenceOptions"
               optionLabel="label"
               optionValue="value"
               placeholder="Select or type a reference…"
@@ -208,6 +206,41 @@
             <BaseInput v-model="form.projectName.value" label="Project Name" />
           </div>
         </template>
+      </div>
+
+      <!-- ═══════════════════════════════════════════════════════════════════
+           SECTION: Engagement Link (received only, optional)
+           Placeholder comboboxes — enabled once POs/Invoices land (Phase 7).
+           ═══════════════════════════════════════════════════════════════════ -->
+      <div v-if="isReceived" class="proposal-form__section card card--padded">
+        <h2 class="proposal-form__section-title">Engagement Link <span class="proposal-form__optional">(optional)</span></h2>
+        <p class="proposal-form__hint">
+          Tie this contractor proposal to a Client PO or one of your Invoices.
+        </p>
+        <div class="proposal-form__grid">
+          <ComboSelect
+            v-model="form.linkedClientPoId.value"
+            label="Client PO"
+            :options="clientPoOptions"
+            optionLabel="label"
+            optionValue="value"
+            placeholder="Select a Client PO…"
+            searchable
+            showClear
+            filterPlaceholder="Search client POs…"
+          />
+          <ComboSelect
+            v-model="form.linkedOwnerInvoiceId.value"
+            label="Owner Invoice"
+            :options="ownerInvoiceOptions"
+            optionLabel="label"
+            optionValue="value"
+            placeholder="Select one of your Invoices…"
+            searchable
+            showClear
+            filterPlaceholder="Search your invoices…"
+          />
+        </div>
       </div>
 
       <!-- ═══════════════════════════════════════════════════════════════════
@@ -322,7 +355,9 @@
     <ConfirmModal
       v-model:visible="showAcceptedPrompt"
       title="Create a linked PO?"
-      message="This proposal is being marked Accepted. Create a linked Purchase Order from it?"
+      :message="isReceived
+        ? 'This contractor proposal is being marked Accepted. Create a linked Purchase Order for this contractor?'
+        : 'This proposal is being marked Accepted. Create a linked Purchase Order from it?'"
       confirmLabel="Create PO"
       cancelLabel="Just save"
       variant="info"
@@ -353,15 +388,21 @@ import {
 } from '../../api/proposals'
 import { useMPDestinations } from '../../api/mpDestinations'
 import { useAllContacts, type ContactRow } from '../../api/clients'
+import { useAllContractors } from '../../api/contractors'
+import { usePOList } from '../../api/purchaseOrders'
+import { useInvoiceList } from '../../api/invoices'
 import { useTaxRateLookup } from '../../api/taxRates'
+import { useConfigList } from '../../composables/useConfigList'
+import { PROPOSAL_STATUSES } from '../../types/proposal'
+import type { DocDirection } from '../../types/common'
 import BaseInput from '../../components/base/BaseInput.vue'
 import ComboSelect from '../../components/base/ComboSelect.vue'
 import BaseDatePicker from '../../components/base/BaseDatePicker.vue'
 import RichTextEditor from '../../components/base/RichTextEditor.vue'
 import ConfirmModal from '../../components/base/ConfirmModal.vue'
 import ClientFormModal from '../clients/ClientFormModal.vue'
-import LineItemsTable from './components/LineItemsTable.vue'
-import TotalsCards from './components/TotalsCards.vue'
+import LineItemsTable from '../../components/documents/LineItemsTable.vue'
+import TotalsCards from '../../components/documents/TotalsCards.vue'
 import type { MPDestination, ProposalType } from '../../types/proposal'
 
 const router = useRouter()
@@ -371,6 +412,34 @@ const isEdit = !!route.params.id
 const proposalId = ref<string>(route.params.id as string || '')
 
 const form = useProposalForm()
+
+// Direction: on create it comes from ?direction= (default issued); on edit it's
+// restored from the loaded record (locked). Received = contractors side.
+const isReceived = computed(() => form.direction.value === 'received')
+const counterpartyLabel = computed(() => (isReceived.value ? 'Contractor Name' : 'Client Name'))
+if (!isEdit) {
+  const dir: DocDirection = route.query.direction === 'received' ? 'received' : 'issued'
+  form.initDirection(dir)
+}
+
+// Direction-scoped status options (issued: Draft/Sent/Accepted/Declined;
+// received: Received/Accepted/Declined).
+const statusOptions = computed(() =>
+  PROPOSAL_STATUSES[form.direction.value].map((s) => ({ label: s, value: s })),
+)
+
+// ── Engagement-link options (received proposals only, §7) ─────────────────────
+// Client PO = received POs; Owner Invoice = our issued invoices.
+const receivedPoParams = computed(() => ({ direction: 'received' as const, page: 1, page_size: 1000 }))
+const { data: receivedPoData } = usePOList(receivedPoParams)
+const clientPoOptions = computed(() =>
+  (receivedPoData.value?.items ?? []).map((po) => ({ value: po.id, label: `${po.number} — ${po.client_name}` })),
+)
+const issuedInvoiceParams = computed(() => ({ direction: 'issued' as const, page: 1, page_size: 1000 }))
+const { data: issuedInvoiceData } = useInvoiceList(issuedInvoiceParams)
+const ownerInvoiceOptions = computed(() =>
+  (issuedInvoiceData.value?.items ?? []).map((inv) => ({ value: inv.id, label: `${inv.number} — ${inv.client_name}` })),
+)
 
 // ── MP Destinations ───────────────────────────────────────────────────────────
 const { data: mpDestData } = useMPDestinations()
@@ -394,7 +463,8 @@ function onDestinationPicked(val: unknown) {
 const typeRef = computed<ProposalType>(() => form.type.value)
 const { data: nextNumber } = useNextProposalNumber(typeRef)
 watch(nextNumber, (v) => {
-  if (v && !isEdit && !form.number.value) {
+  // Received proposals use the counterparty's external number — no auto-prefill.
+  if (v && !isEdit && !isReceived.value && !form.number.value) {
     form.number.value = v
     form.markFromNumberAutofill()
   }
@@ -414,8 +484,13 @@ watch(existingProposal, (p) => {
 // 85 rows is well within what PrimeVue's filter handles smoothly; if the table
 // grows, swap this for a server-side search endpoint.
 
+// Counterparty source switches by direction: clients (issued) vs contractors
+// (received). Both return the same row shape, so the picker below is identical.
 const { data: allContactsData } = useAllContacts()
-const allContacts = computed<ContactRow[]>(() => allContactsData.value ?? [])
+const { data: allContractorsData } = useAllContractors()
+const allContacts = computed<ContactRow[]>(() =>
+  (isReceived.value ? allContractorsData.value : allContactsData.value) ?? [],
+)
 
 const selectedContactId = ref<string | null>(null)
 
@@ -534,26 +609,12 @@ function onTaxRateInput(e: Event) {
   form.onTaxRateUserEdit(decimal)
 }
 
-// ── Status options ────────────────────────────────────────────────────────────
-const STATUS_OPTIONS = [
-  { label: 'Draft', value: 'Draft' },
-  { label: 'Sent', value: 'Sent' },
-  { label: 'Accepted', value: 'Accepted' },
-  { label: 'Declined', value: 'Declined' },
-]
-
-// ── Reference presets (MP only) ───────────────────────────────────────────────
-// Hard-coded until the API ships. Users can also type a custom value.
-const REFERENCE_OPTIONS = [
-  {
-    label: 'Proposal for Medical Physicist Professional Services',
-    value: 'Proposal for Medical Physicist Professional Services',
-  },
-  {
-    label: 'Proposal for Medical Physicist',
-    value: 'Proposal for Medical Physicist',
-  },
-]
+// ── Reference presets (MP only) — admin-configurable list (spec §3.4) ─────────
+// Free-entry fallback stays (ComboSelect editable): users can type a custom value.
+const { items: referenceItems } = useConfigList('references')
+const referenceOptions = computed(() =>
+  referenceItems.value.map((i) => ({ label: i.label, value: i.label })),
+)
 
 // ── Save ──────────────────────────────────────────────────────────────────────
 const saveLoading = ref(false)
@@ -614,7 +675,13 @@ function onDuplicateReplace() {
 
 function onAcceptedCreatePO() {
   showAcceptedPrompt.value = false
-  router.push(`/purchase-orders/new?from_proposal=${pendingSavedId.value}`)
+  // Issued proposal accepted → create the client PO (received). Received proposal
+  // accepted → create our sub PO (issued). Spec §2 / §6.
+  const poDirection: DocDirection = isReceived.value ? 'issued' : 'received'
+  router.push({
+    name: 'po-new',
+    query: { direction: poDirection, from_proposal: pendingSavedId.value },
+  })
 }
 
 function onAcceptedJustSave() {
@@ -725,6 +792,19 @@ function handleCancel() {
 
 .field__required {
   color: var(--color-error);
+}
+
+.proposal-form__optional {
+  font-weight: 500;
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--color-text-subtle);
+}
+
+.proposal-form__hint {
+  font-size: 12.5px;
+  color: var(--color-text-subtle);
+  margin: -4px 0 0;
 }
 
 /* ── Contact picker option rows ──────────────────────────────────────────── */

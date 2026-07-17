@@ -14,7 +14,7 @@
     <Popover ref="popoverRef" :dismissable="true">
       <div class="status-popover__menu">
         <div
-          v-for="s in STATUS_OPTIONS"
+          v-for="s in statusOptions"
           :key="s"
           :class="['status-popover__option', { 'is-active': s === currentStatus }]"
           @click="select(s)"
@@ -29,44 +29,61 @@
   </div>
 </template>
 
-<script setup lang="ts">
-import { ref } from 'vue'
+<script setup lang="ts" generic="T extends string">
+import { ref, computed, type Ref } from 'vue'
 import Popover from 'primevue/popover'
-import StatusBadge from '../../../components/base/StatusBadge.vue'
-import type { ProposalStatus } from '../../../types/proposal'
+import StatusBadge from '../base/StatusBadge.vue'
+import { PROPOSAL_STATUSES, type ProposalStatus } from '../../types/proposal'
+import type { DocDirection } from '../../types/common'
 
-const props = defineProps<{
-  status: ProposalStatus
+type BadgeVariant = 'gray' | 'blue' | 'green' | 'red' | 'amber' | 'purple' | 'light-gray'
+
+// Generic status popover shared by every document type. Proposals rely on the
+// direction-based defaults below; POs/Invoices pass explicit `options` +
+// `variantMap` (their statuses are their own code-owned enums).
+const props = withDefaults(defineProps<{
+  status: T
+  options?: T[]
+  variantMap?: Record<string, BadgeVariant>
+  direction?: DocDirection
   loading?: boolean
-}>()
+}>(), {
+  direction: 'issued',
+})
 
 const emit = defineEmits<{
-  change: [status: ProposalStatus]
+  change: [status: T]
 }>()
 
-const STATUS_OPTIONS: ProposalStatus[] = ['Draft', 'Sent', 'Accepted', 'Declined']
+// Proposal fallback (used only when `options`/`variantMap` aren't provided).
+const PROPOSAL_VARIANTS: Record<ProposalStatus, BadgeVariant> = {
+  Draft: 'gray',
+  Sent: 'blue',
+  Received: 'blue',
+  Accepted: 'green',
+  Declined: 'red',
+}
+
+const statusOptions = computed<T[]>(
+  () => props.options ?? (PROPOSAL_STATUSES[props.direction] as unknown as T[]),
+)
 
 const popoverRef = ref<InstanceType<typeof Popover> | null>(null)
-const currentStatus = ref<ProposalStatus>(props.status)
+const currentStatus = ref(props.status) as Ref<T>
 
 function toggle(e: MouseEvent) {
   popoverRef.value?.toggle(e)
 }
 
-function select(s: ProposalStatus) {
+function select(s: T) {
   currentStatus.value = s
   popoverRef.value?.hide()
   emit('change', s)
 }
 
-function statusVariant(s: ProposalStatus): 'gray' | 'blue' | 'green' | 'red' {
-  const map: Record<ProposalStatus, 'gray' | 'blue' | 'green' | 'red'> = {
-    Draft: 'gray',
-    Sent: 'blue',
-    Accepted: 'green',
-    Declined: 'red',
-  }
-  return map[s]
+function statusVariant(s: T): BadgeVariant {
+  if (props.variantMap && props.variantMap[s]) return props.variantMap[s]
+  return PROPOSAL_VARIANTS[s as unknown as ProposalStatus] ?? 'gray'
 }
 </script>
 

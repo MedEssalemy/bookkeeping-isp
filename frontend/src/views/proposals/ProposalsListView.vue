@@ -17,21 +17,9 @@
           Export
         </button>
         <button
-          v-if="auth.isAdmin"
-          class="btn btn--secondary btn--sm"
-          @click="handleImport"
-        >
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-            <polyline points="17 8 12 3 7 8"/>
-            <line x1="12" y1="3" x2="12" y2="15"/>
-          </svg>
-          Import
-        </button>
-        <button
           v-if="auth.canEdit"
           class="btn btn--primary btn--sm"
-          @click="router.push({ name: 'proposal-new' })"
+          @click="goNew"
         >
           + New Proposal
         </button>
@@ -99,7 +87,7 @@
       <!-- Job Code multi-select -->
       <MultiSelect
         v-model="filters.job_code"
-        :options="JOB_CODES"
+        :options="jobCodeOptions"
         placeholder="All job codes"
         display="chip"
         :maxSelectedLabels="1"
@@ -165,7 +153,7 @@
         :subtext="hasActiveFilters ? 'Try adjusting your filters.' : 'Create your first proposal to get started.'"
       >
         <template v-if="!hasActiveFilters && auth.canEdit" #cta>
-          <button class="btn btn--primary btn--sm" @click="router.push({ name: 'proposal-new' })">
+          <button class="btn btn--primary btn--sm" @click="goNew">
             + New Proposal
           </button>
         </template>
@@ -188,7 +176,7 @@
                 Type <SortIndicator :col="'type'" :sort="sort" />
               </th>
               <th v-else-if="key === 'client' && visible.client" @click="toggleSort('client')" class="proposals-list__sortable">
-                Client / Location <SortIndicator :col="'client'" :sort="sort" />
+                {{ clientColumnLabel }} <SortIndicator :col="'client'" :sort="sort" />
               </th>
               <th v-else-if="key === 'project_name' && visible.project_name" @click="toggleSort('project_name')" class="proposals-list__sortable">
                 Project Name <SortIndicator :col="'project_name'" :sort="sort" />
@@ -267,6 +255,7 @@
               <td v-else-if="key === 'status' && visible.status" @click.stop>
                 <StatusPopover
                   :status="item.status"
+                  :direction="direction"
                   :loading="updatingStatus === item.id"
                   @change="(s) => onStatusChange(item.id, s)"
                 />
@@ -287,7 +276,7 @@
                   </svg>
                 </button>
                 <button
-                  v-if="auth.canEdit"
+                  v-if="auth.canEdit && direction === 'issued'"
                   class="action-btn"
                   title="Generate Document"
                   @click="handleGenerateDoc(item)"
@@ -354,7 +343,7 @@
           </label>
           <div class="proposals-list__jc-panel-divider" />
           <label
-            v-for="code in JOB_CODES"
+            v-for="code in jobCodeOptions"
             :key="code"
             class="proposals-list__jc-panel-item"
             @click.stop
@@ -428,30 +417,6 @@
       </div>
     </Popover>
 
-    <!-- Import dummy modal -->
-    <ConfirmModal
-      v-model:visible="showImportModal"
-      title="Import proposals"
-      message="Import is not yet implemented. This is a demo placeholder — full feature coming soon."
-      confirmLabel="OK"
-      cancelLabel=""
-      variant="info"
-      @confirm="showImportModal = false"
-      @cancel="showImportModal = false"
-    />
-
-    <!-- Export dummy modal -->
-    <ConfirmModal
-      v-model:visible="showExportModal"
-      title="Export proposals"
-      message="Export is not yet implemented. This is a demo placeholder — full feature coming soon."
-      confirmLabel="OK"
-      cancelLabel=""
-      variant="info"
-      @confirm="showExportModal = false"
-      @cancel="showExportModal = false"
-    />
-
     <!-- Delete confirm modal -->
     <ConfirmModal
       v-model:visible="showDeleteModal"
@@ -467,7 +432,7 @@
 
 <script setup lang="ts">
 import { ref, computed, watch, h } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 import MultiSelect from 'primevue/multiselect'
 import Select from 'primevue/select'
 import DatePicker from 'primevue/datepicker'
@@ -479,15 +444,19 @@ import {
   useDeleteProposal,
   useGenerateDocument,
 } from '../../api/proposals'
-import { JOB_CODES } from '../../mocks/jobCodes'
+import { useConfigList } from '../../composables/useConfigList'
+import { exportDocuments } from '../../utils/documentExport'
 import StatusBadge from '../../components/base/StatusBadge.vue'
 import EmptyState from '../../components/base/EmptyState.vue'
 import ActionButtons from '../../components/base/ActionButtons.vue'
 import ConfirmModal from '../../components/base/ConfirmModal.vue'
-import StatusPopover from './components/StatusPopover.vue'
-import type { ProposalListItem, ProposalStatus, ProposalType, JobCode } from '../../types/proposal'
+import StatusPopover from '../../components/documents/StatusPopover.vue'
+import { PROPOSAL_STATUSES } from '../../types/proposal'
+import type { ProposalListItem, ProposalListParams, ProposalStatus, ProposalType, JobCode } from '../../types/proposal'
+import type { DocDirection } from '../../types/common'
 
 const router = useRouter()
+const route = useRoute()
 const auth = useAuthStore()
 
 // ── Filters ───────────────────────────────────────────────────────────────────
@@ -542,7 +511,8 @@ function clearFilters() {
   page.value = 1
 }
 
-const STATUS_OPTIONS: ProposalStatus[] = ['Draft', 'Sent', 'Accepted', 'Declined']
+// Status filter options follow the route's direction (issued vs received set).
+const STATUS_OPTIONS = computed<ProposalStatus[]>(() => PROPOSAL_STATUSES[direction.value])
 const TYPE_OPTIONS = [
   { label: 'Standard', value: 'Standard' },
   { label: 'MP', value: 'MP' },
@@ -563,7 +533,13 @@ const COLUMN_LABELS: Record<ColumnKey, string> = {
   total: 'Total',
 }
 
+// The counterparty column reads "Contractor / Location" on the received side.
+const clientColumnLabel = computed(() =>
+  direction.value === 'received' ? 'Contractor / Location' : 'Client / Location',
+)
+
 function columnLabel(key: ColumnKey): string {
+  if (key === 'client') return clientColumnLabel.value
   return COLUMN_LABELS[key]
 }
 
@@ -690,8 +666,16 @@ function toggleJobCode(code: JobCode) {
 
 // ── Data ──────────────────────────────────────────────────────────────────────
 
-const queryParams = ref({ page: 1, page_size: 1000 })
+// Direction is scoped by the route (/proposals/issued vs /proposals/received).
+const direction = computed<DocDirection>(() => (route.meta.direction as DocDirection) ?? 'issued')
+const queryParams = computed<ProposalListParams>(() => ({
+  direction: direction.value,
+  page: 1,
+  page_size: 1000,
+}))
 const { data, isLoading, isError } = useProposalList(queryParams)
+
+const { options: jobCodeOptions } = useConfigList('job_codes')
 
 const allItems = computed<ProposalListItem[]>(() => data.value?.items ?? [])
 
@@ -739,6 +723,7 @@ function toggleSort(col: SortCol) {
 const STATUS_ORDER: Record<ProposalStatus, number> = {
   Draft: 0,
   Sent: 1,
+  Received: 1,
   Accepted: 2,
   Declined: 3,
 }
@@ -801,12 +786,19 @@ async function handleGenerateDoc(item: ProposalListItem) {
   URL.revokeObjectURL(url)
 }
 
-// ── Import / Export (demo placeholders) ───────────────────────────────────────
+// ── New proposal (carries the list's direction into the create form) ──────────
 
-const showExportModal = ref(false)
-const showImportModal = ref(false)
-function handleExport() { showExportModal.value = true }
-function handleImport() { showImportModal.value = true }
+function goNew() {
+  router.push({ name: 'proposal-new', query: { direction: direction.value } })
+}
+
+// ── Export (one-row-per-line-item CSV, respects active filters; Import removed
+// per spec §12) ───────────────────────────────────────────────────────────────
+
+async function handleExport() {
+  const stamp = new Date().toISOString().slice(0, 10)
+  await exportDocuments('proposals', filteredItems.value.map((i) => i.id), `proposals-${direction.value}-${stamp}.csv`)
+}
 
 // ── Delete ────────────────────────────────────────────────────────────────────
 

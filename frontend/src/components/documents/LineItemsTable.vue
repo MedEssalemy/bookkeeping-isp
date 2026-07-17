@@ -26,7 +26,7 @@
               <Select
                 v-if="!readonly"
                 v-model="item.job_code"
-                :options="JOB_CODES"
+                :options="jobCodeOptions"
                 placeholder="—"
                 showClear
                 class="line-items__jc-select"
@@ -160,8 +160,10 @@
 
 <script setup lang="ts">
 import Select from 'primevue/select'
-import { JOB_CODES } from '../../../mocks/jobCodes'
-import type { StandardLineItem, MPLineItem } from '../../../types/proposal'
+import { useConfigList } from '../../composables/useConfigList'
+import type { StandardLineItem, MPLineItem } from '../../types/proposal'
+
+const { options: jobCodeOptions } = useConfigList('job_codes')
 
 const props = withDefaults(defineProps<{
   items: (StandardLineItem | MPLineItem)[]

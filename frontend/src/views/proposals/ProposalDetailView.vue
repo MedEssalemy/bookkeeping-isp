@@ -13,6 +13,7 @@
         <StatusPopover
           v-if="proposal"
           :status="proposal.status"
+          :direction="proposal.direction"
           @change="(s) => onStatusChange(s)"
         />
       </div>
@@ -22,13 +23,14 @@
           class="btn btn--secondary btn--sm"
           @click="router.push({ name: 'proposal-edit', params: { id: proposal.id } })"
         >Edit</button>
+        <!-- Received documents have nothing to generate — hide (spec §0.2). -->
         <button
-          v-if="auth.canEdit"
+          v-if="auth.canEdit && proposal.direction === 'issued'"
           class="btn btn--secondary btn--sm"
           @click="handleGenerateDoc"
         >Generate Document</button>
         <button
-          v-if="auth.canEdit"
+          v-if="auth.canEdit && proposal.direction === 'issued'"
           class="btn btn--secondary btn--sm"
           @click="showPreview = true"
         >Preview Document</button>
@@ -85,6 +87,26 @@
           </template>
         </div>
       </div>
+
+      <!-- Linked documents (§7): documents generated from this proposal, plus
+           engagement links on received proposals. -->
+      <div v-if="linkedDocs.length" class="proposal-detail__section card card--padded">
+        <h2 class="proposal-detail__section-title">Linked Documents</h2>
+        <div class="proposal-detail__links">
+          <router-link
+            v-for="link in linkedDocs"
+            :key="link.kind + link.id"
+            class="proposal-detail__link"
+            :to="link.to"
+          >
+            <span class="proposal-detail__link-kind">{{ link.kind }}</span>
+            <span class="proposal-detail__link-num">{{ link.label }}</span>
+          </router-link>
+        </div>
+      </div>
+
+      <!-- Attachments (received documents only) -->
+      <AttachmentsCard v-if="proposal.direction === 'received'" module="proposals" :record-id="proposal.id" />
 
       <!-- Line items -->
       <div class="proposal-detail__section card card--padded">
@@ -143,8 +165,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref, h } from 'vue'
-import { useRouter, useRoute } from 'vue-router'
+import { ref, computed, h } from 'vue'
+import { useRouter, useRoute, type RouteLocationRaw } from 'vue-router'
 import { useAuthStore } from '../../stores/auth'
 import {
   useProposal,
@@ -152,11 +174,14 @@ import {
   useGenerateDocument,
   useDeleteProposal,
 } from '../../api/proposals'
-import StatusPopover from './components/StatusPopover.vue'
+import { usePOList } from '../../api/purchaseOrders'
+import { useInvoiceList } from '../../api/invoices'
+import StatusPopover from '../../components/documents/StatusPopover.vue'
 import StatusBadge from '../../components/base/StatusBadge.vue'
-import LineItemsTable from './components/LineItemsTable.vue'
-import TotalsCards from './components/TotalsCards.vue'
-import DocPreviewModal from './components/DocPreviewModal.vue'
+import LineItemsTable from '../../components/documents/LineItemsTable.vue'
+import TotalsCards from '../../components/documents/TotalsCards.vue'
+import DocPreviewModal from '../../components/documents/DocPreviewModal.vue'
+import AttachmentsCard from '../../components/documents/AttachmentsCard.vue'
 import ConfirmModal from '../../components/base/ConfirmModal.vue'
 import type { ProposalStatus } from '../../types/proposal'
 
@@ -168,6 +193,51 @@ const proposalId = route.params.id as string
 const idRef = ref(proposalId)
 
 const { data: proposal, isLoading, isError } = useProposal(idRef)
+
+// ── Linked documents (§7) ─────────────────────────────────────────────────────
+// Documents generated from this proposal (POs/invoices carrying its id), plus
+// the engagement links stored on a received proposal.
+const posIssuedParams = computed(() => ({ direction: 'issued' as const, page: 1, page_size: 1000 }))
+const posReceivedParams = computed(() => ({ direction: 'received' as const, page: 1, page_size: 1000 }))
+const invIssuedParams = computed(() => ({ direction: 'issued' as const, page: 1, page_size: 1000 }))
+const invReceivedParams = computed(() => ({ direction: 'received' as const, page: 1, page_size: 1000 }))
+const { data: posIssued } = usePOList(posIssuedParams)
+const { data: posReceived } = usePOList(posReceivedParams)
+const { data: invIssued } = useInvoiceList(invIssuedParams)
+const { data: invReceived } = useInvoiceList(invReceivedParams)
+
+interface LinkedDoc { kind: string; id: string; label: string; to: RouteLocationRaw }
+
+const linkedDocs = computed<LinkedDoc[]>(() => {
+  const p = proposal.value
+  if (!p) return []
+  const links: LinkedDoc[] = []
+  const allPos = [...(posIssued.value?.items ?? []), ...(posReceived.value?.items ?? [])]
+  const allInv = [...(invIssued.value?.items ?? []), ...(invReceived.value?.items ?? [])]
+
+  // Documents that reference this proposal.
+  for (const po of allPos) {
+    if (po.proposal_id === p.id) {
+      links.push({ kind: 'Purchase Order', id: po.id, label: po.number, to: { name: 'po-detail', params: { id: po.id } } })
+    }
+  }
+  for (const inv of allInv) {
+    if (inv.proposal_id === p.id) {
+      links.push({ kind: 'Invoice', id: inv.id, label: inv.number, to: { name: 'invoice-detail', params: { id: inv.id } } })
+    }
+  }
+
+  // Engagement links on a received proposal.
+  if (p.linked_client_po_id) {
+    const po = allPos.find((x) => x.id === p.linked_client_po_id)
+    links.push({ kind: 'Client PO (engagement)', id: p.linked_client_po_id, label: po?.number ?? 'View', to: { name: 'po-detail', params: { id: p.linked_client_po_id } } })
+  }
+  if (p.linked_owner_invoice_id) {
+    const inv = allInv.find((x) => x.id === p.linked_owner_invoice_id)
+    links.push({ kind: 'Owner Invoice (engagement)', id: p.linked_owner_invoice_id, label: inv?.number ?? 'View', to: { name: 'invoice-detail', params: { id: p.linked_owner_invoice_id } } })
+  }
+  return links
+})
 
 // Status update
 const { mutate: updateStatus } = useUpdateProposalStatus()
@@ -307,6 +377,42 @@ const DetailField = (props: { label: string; value?: string | null }) => {
   display: flex;
   gap: 32px;
   flex-wrap: wrap;
+}
+
+.proposal-detail__links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.proposal-detail__link {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 14px;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  text-decoration: none;
+  background: var(--color-bg-subtle);
+  transition: border-color 0.1s;
+}
+
+.proposal-detail__link:hover {
+  border-color: var(--color-primary);
+}
+
+.proposal-detail__link-kind {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--color-text-subtle);
+}
+
+.proposal-detail__link-num {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-primary);
 }
 
 :deep(.proposal-detail__field) {

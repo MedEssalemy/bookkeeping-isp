@@ -1,27 +1,25 @@
-export type ProposalStatus = 'Draft' | 'Sent' | 'Accepted' | 'Declined'
+import type { DocDirection } from './common'
+
+// Direction-scoped status sets (spec §3.1). Statuses are code-owned enums, not
+// admin-configurable lists (§3.4).
+export type ProposalStatus = 'Draft' | 'Sent' | 'Received' | 'Accepted' | 'Declined'
 export type ProposalType = 'Standard' | 'MP'
 
-export type JobCode =
-  | 'Decommissioning'
-  | 'Medical Physics Services'
-  | 'Service'
-  | 'Rental'
-  | 'Sales'
-  | 'Equipment Move'
-  | 'Parts'
-  | 'Shipping'
-  | 'System'
-  | 'Transportation'
-  | 'Discount'
-  | 'Service Charge'
-  | 'TAX Voucher Payment'
-  | 'Insurance'
-  | 'TAX Payment'
-  | 'Relocate'
-  | 'Sales and Use Tax'
-  | 'Travel'
-  | 'Property Tax'
-  | 'Tax'
+/** Status options per direction — the single source for form/list/popover. */
+export const PROPOSAL_STATUSES: Record<DocDirection, ProposalStatus[]> = {
+  issued: ['Draft', 'Sent', 'Accepted', 'Declined'],
+  received: ['Received', 'Accepted', 'Declined'],
+}
+
+export function defaultProposalStatus(direction: DocDirection): ProposalStatus {
+  return direction === 'issued' ? 'Draft' : 'Received'
+}
+
+// Job codes are an admin-configurable list (spec §3.4). Values are validated at
+// runtime against the fetched config list, not by this compile-time alias.
+// Seed data + the read hook live in the config-list infrastructure
+// (mocks/configLists.ts + composables/useConfigList).
+export type JobCode = string
 
 // ── Line items ────────────────────────────────────────────────────────────────
 
@@ -52,8 +50,13 @@ export interface Proposal {
   id: string
   number: string
   type: ProposalType
+  direction: DocDirection            // spec §3.1 — default 'issued'; locked after save
   status: ProposalStatus
   date: string // ISO date
+
+  // ── Engagement links (received only, optional — spec §7) ──
+  linked_client_po_id?: string
+  linked_owner_invoice_id?: string
 
   // ── Standard fields ──
   client_name?: string
@@ -98,6 +101,7 @@ export interface ProposalListItem {
   id: string
   number: string
   type: ProposalType
+  direction: DocDirection
   status: ProposalStatus
   date: string
   client_name?: string
@@ -110,6 +114,7 @@ export interface ProposalListItem {
 // ── Params ────────────────────────────────────────────────────────────────────
 
 export interface ProposalListParams {
+  direction: DocDirection   // required — every list call is direction-scoped (spec §3.1)
   q?: string
   status?: ProposalStatus[]
   type?: ProposalType
@@ -126,8 +131,13 @@ export interface ProposalListParams {
 export interface ProposalPayload {
   number: string
   type: ProposalType
+  direction: DocDirection            // clients side ('issued') vs contractors side ('received')
   status: ProposalStatus
   date: string
+
+  // Engagement links (received only, optional — spec §7)
+  linked_client_po_id?: string
+  linked_owner_invoice_id?: string
 
   // Standard
   client_name?: string

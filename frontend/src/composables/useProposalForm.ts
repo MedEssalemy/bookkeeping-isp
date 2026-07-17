@@ -1,13 +1,15 @@
 import { ref, computed, watch, nextTick } from 'vue'
-import type {
-  ProposalType,
-  ProposalStatus,
-  StandardLineItem,
-  MPLineItem,
-  ClientContact,
-  MPDestination,
-  ProposalPayload,
+import {
+  defaultProposalStatus,
+  type ProposalType,
+  type ProposalStatus,
+  type StandardLineItem,
+  type MPLineItem,
+  type ClientContact,
+  type MPDestination,
+  type ProposalPayload,
 } from '../types/proposal'
+import type { DocDirection } from '../types/common'
 
 // ── Line item factories ────────────────────────────────────────────────────────
 
@@ -51,9 +53,16 @@ export function useProposalForm() {
   // ── Core ─────────────────────────────────────────────────────────────────────
   const type = ref<ProposalType>('Standard')
   const typeLocked = ref<boolean>(false)  // becomes true after first save
+  // Direction: 'issued' = clients side, 'received' = contractors side. Locked
+  // after first save (same rule as type). Drives the status set and counterparty.
+  const direction = ref<DocDirection>('issued')
   const status = ref<ProposalStatus>('Draft')
   const date = ref<string>(new Date().toISOString().slice(0, 10))
   const number = ref<string>('')
+
+  // ── Engagement links (received only, optional — spec §7) ──────────────────────
+  const linkedClientPoId = ref<string>('')
+  const linkedOwnerInvoiceId = ref<string>('')
 
   // ── Standard fields ──────────────────────────────────────────────────────────
   const clientName = ref<string>('')
@@ -96,6 +105,13 @@ export function useProposalForm() {
     taxRateEdited.value = false
     if (!taxable.value) taxRate.value = 0
   })
+
+  // Set direction on a fresh (create) form and seed the direction-appropriate
+  // default status. Not used on edit — loadProposal restores the saved direction.
+  function initDirection(dir: DocDirection) {
+    direction.value = dir
+    status.value = defaultProposalStatus(dir)
+  }
 
   // ── Line items ───────────────────────────────────────────────────────────────
   const standardItems = ref<StandardLineItem[]>([newStandardItem()])
@@ -318,11 +334,19 @@ export function useProposalForm() {
     const base = {
       number: number.value,
       type: type.value,
+      direction: direction.value,
       status: status.value,
       date: date.value,
       taxable: taxable.value,
       tax_rate: taxable.value ? taxRate.value : 0,
       notes: notes.value || undefined,
+      // Engagement links apply to received proposals only (optional).
+      ...(direction.value === 'received'
+        ? {
+            linked_client_po_id: linkedClientPoId.value || undefined,
+            linked_owner_invoice_id: linkedOwnerInvoiceId.value || undefined,
+          }
+        : {}),
     }
 
     if (type.value === 'Standard') {
@@ -367,8 +391,11 @@ export function useProposalForm() {
   function loadProposal(p: {
     number: string
     type: ProposalType
+    direction: DocDirection
     status: ProposalStatus
     date: string
+    linked_client_po_id?: string
+    linked_owner_invoice_id?: string
     client_name?: string
     address?: string
     title?: string
@@ -391,9 +418,12 @@ export function useProposalForm() {
   }) {
     type.value = p.type
     typeLocked.value = true
+    direction.value = p.direction
     status.value = p.status
     date.value = p.date
     number.value = p.number
+    linkedClientPoId.value = p.linked_client_po_id ?? ''
+    linkedOwnerInvoiceId.value = p.linked_owner_invoice_id ?? ''
     taxable.value = p.taxable
     taxRate.value = p.tax_rate
     taxRateEdited.value = false
@@ -443,6 +473,7 @@ export function useProposalForm() {
       reference, projectLocation, projectType,
       taxable, taxRate,
       notes, servicesProvided,
+      linkedClientPoId, linkedOwnerInvoiceId,
       standardItems, mpItems],
     () => { isDirty.value = true },
     { deep: true },
@@ -450,7 +481,10 @@ export function useProposalForm() {
 
   return {
     // Core
-    type, typeLocked, status, date, number,
+    type, typeLocked, direction, status, date, number,
+    initDirection,
+    // Engagement links (received)
+    linkedClientPoId, linkedOwnerInvoiceId,
     // Standard
     clientName, address, title, businessName, department, phone, email,
     projectNo, projectName, agreementNo, proposalValidTill,

@@ -77,7 +77,7 @@ function previewNextNumber(type: ProposalType, yy = '26'): string {
 
 // ── Fixtures ──────────────────────────────────────────────────────────────────
 
-const PROPOSALS: Proposal[] = [
+const PROPOSAL_SEED: Omit<Proposal, 'direction'>[] = [
   // Q-260001: Standard, Draft
   {
     id: 'p1',
@@ -292,6 +292,116 @@ const PROPOSALS: Proposal[] = [
   },
 ]
 
+// ── Received fixtures (contractors side) ──────────────────────────────────────
+// External numbers (free text), received status set, contractor counterparties.
+// MP-format received proposals carry no counterparty field (same as MP issued).
+const RECEIVED_SEED: Omit<Proposal, 'direction'>[] = [
+  // Standard received, status Received
+  {
+    id: 'rp1',
+    number: 'PCS-4471',
+    type: 'Standard',
+    status: 'Received',
+    date: '2026-05-02',
+    client_name: 'Raj Patel',
+    address: '4200 Westheimer Rd, Houston, TX 77027',
+    business_name: 'Precision Calibration Services',
+    title: 'Field Engineer',
+    phone: '(713) 555-0710',
+    email: 'raj@precisioncal.example',
+    project_name: 'Annual Calibration — Houston Sites',
+    taxable: true,
+    tax_rate: 0.0825,
+    line_items: [
+      calcStandardItem({ id: 'rli1', job_code: 'Service', description: 'On-site calibration labor', qty: 12, rate: 140 }),
+      calcStandardItem({ id: 'rli2', job_code: 'Travel', description: 'Travel & per diem', qty: null, rate: 480 }),
+    ],
+    subtotal: 0,
+    sales_tax: 0,
+    total: 0,
+    notes: '<p>Contractor quote for the annual calibration cycle.</p>',
+    created_at: '2026-05-02T09:00:00Z',
+    updated_at: '2026-05-02T09:00:00Z',
+  },
+  // Standard received, status Accepted
+  {
+    id: 'rp2',
+    number: '2026-0091',
+    type: 'Standard',
+    status: 'Accepted',
+    date: '2026-04-28',
+    client_name: 'Tom Becker',
+    address: '188 Industrial Blvd, San Antonio, TX 78201',
+    business_name: 'Rigging & Transport Co',
+    title: 'Operations Lead',
+    phone: '(210) 555-0933',
+    email: 'tom@rigtransport.example',
+    project_name: 'LINAC Relocation — Rigging',
+    taxable: true,
+    tax_rate: 0.0825,
+    line_items: [
+      calcStandardItem({ id: 'rli3', job_code: 'Relocate', description: 'Rigging crew (2 days)', qty: 2, rate: 3200 }),
+      calcStandardItem({ id: 'rli4', job_code: 'Transportation', description: 'Flatbed transport', qty: null, rate: 1850 }),
+    ],
+    subtotal: 0,
+    sales_tax: 0,
+    total: 0,
+    created_at: '2026-04-28T10:00:00Z',
+    updated_at: '2026-05-01T14:00:00Z',
+  },
+  // MP received, status Received
+  {
+    id: 'rp3',
+    number: 'PHYS-2026-07',
+    type: 'MP',
+    status: 'Received',
+    date: '2026-05-06',
+    reference: 'Proposal for Medical Physicist Professional Services',
+    project_location: 'MD Anderson Cancer Center',
+    address: '1515 Holcombe Blvd, Houston, TX 77030',
+    project_type: 'Contracted Survey',
+    project_name: 'Subcontracted Physics Survey',
+    taxable: false,
+    tax_rate: 0,
+    line_items: [
+      calcMPItem({ id: 'rli5', job_code: 'Medical Physics Services', services: 'Independent physics survey', hourly_rate: 240, hours_estimated: 20 }),
+    ],
+    subtotal: 0,
+    sales_tax: 0,
+    total: 0,
+    services_provided: '<p>Subcontracted survey per AAPM guidelines.</p>',
+    created_at: '2026-05-06T08:00:00Z',
+    updated_at: '2026-05-06T08:00:00Z',
+  },
+  // MP received, status Declined
+  {
+    id: 'rp4',
+    number: 'PHYS-2026-09',
+    type: 'MP',
+    status: 'Declined',
+    date: '2026-04-18',
+    reference: 'Proposal for Medical Physicist',
+    project_location: 'UT Southwestern Medical Center',
+    address: '5323 Harry Hines Blvd, Dallas, TX 75390',
+    project_type: 'Consulting',
+    taxable: false,
+    tax_rate: 0,
+    line_items: [
+      calcMPItem({ id: 'rli6', job_code: 'Medical Physics Services', services: 'Consulting retainer', hourly_rate: null, hours_estimated: 5000 }),
+    ],
+    subtotal: 0,
+    sales_tax: 0,
+    total: 0,
+    created_at: '2026-04-18T11:00:00Z',
+    updated_at: '2026-04-22T09:00:00Z',
+  },
+]
+
+const PROPOSALS: Proposal[] = [
+  ...PROPOSAL_SEED.map((p): Proposal => ({ ...p, direction: 'issued' })),
+  ...RECEIVED_SEED.map((p): Proposal => ({ ...p, direction: 'received' })),
+]
+
 // Recompute totals for all proposals
 PROPOSALS.forEach(recomputeTotals)
 
@@ -304,6 +414,7 @@ function toListItem(p: Proposal): ProposalListItem {
     id: p.id,
     number: p.number,
     type: p.type,
+    direction: p.direction,
     status: p.status,
     date: p.date,
     client_name: p.client_name,
@@ -315,6 +426,7 @@ function toListItem(p: Proposal): ProposalListItem {
 }
 
 function matchesParams(p: Proposal, params: ProposalListParams): boolean {
+  if (p.direction !== params.direction) return false
   if (params.q) {
     const q = params.q.toLowerCase()
     const matchNum = p.number.toLowerCase().includes(q)
@@ -346,7 +458,7 @@ function matchesParams(p: Proposal, params: ProposalListParams): boolean {
 
 // ── API mock functions ────────────────────────────────────────────────────────
 
-export function mockListProposals(params: ProposalListParams = {}): Promise<{
+export function mockListProposals(params: ProposalListParams = { direction: 'issued' }): Promise<{
   items: ProposalListItem[]
   total: number
   page: number
@@ -386,6 +498,9 @@ export function mockCreateProposal(payload: ProposalPayload): Promise<Proposal> 
     id,
     number,
     type: payload.type,
+    direction: payload.direction ?? 'issued',
+    linked_client_po_id: payload.linked_client_po_id,
+    linked_owner_invoice_id: payload.linked_owner_invoice_id,
     status: payload.status,
     date: payload.date,
     client_name: payload.client_name,
