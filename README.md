@@ -5,6 +5,8 @@ Backend-only implementation of the ERD in `erd_bidirectional.md`, built with
 
 ```
 project/
+├── docs/
+│   └── erd_bidirectional.md  # source-of-truth ERD this schema was built from
 ├── backend/                 # FastAPI service (this iteration)
 │   ├── app/
 │   │   ├── models/          # SQLAlchemy models + M:N junction tables
@@ -25,6 +27,8 @@ project/
 ```
 
 ## How the ERD maps to the schema
+
+Source diagram: [`docs/erd_bidirectional.md`](docs/erd_bidirectional.md).
 
 | ERD relationship | Implementation |
 |---|---|
