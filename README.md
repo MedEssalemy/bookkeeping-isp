@@ -50,6 +50,38 @@ Every model + relationship was verified against a real local Postgres instance
 (`alembic revision --autogenerate` correctly detected all 18 tables; create,
 link/unlink, and FK-constraint behavior were exercised via live HTTP requests).
 
+## Authentication
+
+The API requires a Bearer token on every route except `POST /api/v1/auth/login`.
+This matches the frontend's `src/api/auth.ts` / `src/stores/auth.ts` contract exactly:
+
+```
+POST /api/v1/auth/login
+  in:  { "email": "...", "password": "..." }
+  out: { "access_token": "...", "user": { "id", "email", "full_name", "role" } }
+```
+
+`role` is one of `admin`, `editor`, `viewer`. Reads (`GET`) only require a valid
+token; creates/updates/deletes additionally require `admin` or `editor`
+(`viewer` gets a `403`) — enforced server-side, not just hidden in the UI.
+
+There's no self-registration endpoint on purpose — accounts are created directly
+via a CLI script (admin-managed):
+
+```bash
+# From backend/, with the venv active (or `docker compose exec backend ...`)
+python scripts/create_user.py --email admin@isp.com --password admin123 \
+  --full-name "Abe Ahalla" --role admin
+```
+
+The `admin@isp.com` / `admin123` example above intentionally matches the
+frontend's temporary mock login (`stores/auth.ts`) — seed that user locally and
+you can flip the frontend's commented-out real `login()` implementation on
+without changing test credentials.
+
+Set a real `jwt_secret_key` in `backend/.env` before deploying anywhere beyond
+your own machine — the default in `config.py` is dev-only.
+
 ## Prerequisites
 
 - Docker + Docker Compose (recommended path), **or**

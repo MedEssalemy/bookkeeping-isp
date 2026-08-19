@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
 from app.database import get_db
+from app.security import get_current_user, require_write_access
 from app import crud
 from app.schemas import schemas
 from app.routers.factory import build_crud_router
@@ -27,19 +28,19 @@ def _toggle(collection: list, item, add: bool, db: Session):
 
 # ---- JOB }o--o{ INVOICE : "charges" (direct relation, used when there is no PO) ----
 @router.get("/{job_id}/invoices", response_model=list[schemas.InvoiceRead])
-def list_job_invoices(job_id: int, db: Session = Depends(get_db)):
+def list_job_invoices(job_id: int, db: Session = Depends(get_db), _user=Depends(get_current_user)):
     return crud.job.get(db, job_id).invoices
 
 
 @router.post("/{job_id}/invoices/{invoice_id}", status_code=204)
-def link_job_invoice(job_id: int, invoice_id: int, db: Session = Depends(get_db)):
+def link_job_invoice(job_id: int, invoice_id: int, db: Session = Depends(get_db), _user=Depends(require_write_access)):
     j = crud.job.get(db, job_id)
     _toggle(j.invoices, crud.invoice.get(db, invoice_id), True, db)
     return None
 
 
 @router.delete("/{job_id}/invoices/{invoice_id}", status_code=204)
-def unlink_job_invoice(job_id: int, invoice_id: int, db: Session = Depends(get_db)):
+def unlink_job_invoice(job_id: int, invoice_id: int, db: Session = Depends(get_db), _user=Depends(require_write_access)):
     j = crud.job.get(db, job_id)
     _toggle(j.invoices, crud.invoice.get(db, invoice_id), False, db)
     return None

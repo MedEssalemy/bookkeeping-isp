@@ -1,8 +1,8 @@
 """initial schema
 
-Revision ID: 18d1283dcd91
+Revision ID: 7965cc144c5c
 Revises: 
-Create Date: 2026-08-08 03:27:00.014292
+Create Date: 2026-08-18 23:58:46.695231
 
 """
 from alembic import op
@@ -10,7 +10,7 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision = '18d1283dcd91'
+revision = '7965cc144c5c'
 down_revision = None
 branch_labels = None
 depends_on = None
@@ -54,6 +54,17 @@ def upgrade() -> None:
     sa.PrimaryKeyConstraint('id')
     )
     op.create_index(op.f('ix_subcontractors_id'), 'subcontractors', ['id'], unique=False)
+    op.create_table('users',
+    sa.Column('id', sa.Integer(), nullable=False),
+    sa.Column('email', sa.String(length=255), nullable=False),
+    sa.Column('full_name', sa.String(length=255), nullable=False),
+    sa.Column('hashed_password', sa.String(length=255), nullable=False),
+    sa.Column('role', sa.Enum('admin', 'editor', 'viewer', name='user_role'), nullable=False),
+    sa.Column('is_active', sa.Boolean(), nullable=False),
+    sa.PrimaryKeyConstraint('id')
+    )
+    op.create_index(op.f('ix_users_email'), 'users', ['email'], unique=True)
+    op.create_index(op.f('ix_users_id'), 'users', ['id'], unique=False)
     op.create_table('client_proposals',
     sa.Column('client_id', sa.Integer(), nullable=False),
     sa.Column('proposal_id', sa.Integer(), nullable=False),
@@ -168,6 +179,9 @@ def downgrade() -> None:
     op.drop_table('proposal_jobs')
     op.drop_table('job_subcontractors')
     op.drop_table('client_proposals')
+    op.drop_index(op.f('ix_users_id'), table_name='users')
+    op.drop_index(op.f('ix_users_email'), table_name='users')
+    op.drop_table('users')
     op.drop_index(op.f('ix_subcontractors_id'), table_name='subcontractors')
     op.drop_table('subcontractors')
     op.drop_index(op.f('ix_reference_docs_id'), table_name='reference_docs')

@@ -15,6 +15,11 @@ class Settings(BaseSettings):
     api_prefix: str = "/api/v1"
     cors_origins: list[str] = ["http://localhost:3000", "http://localhost:5173"]
 
+    # JWT auth. CHANGE jwt_secret_key in production — never use the default.
+    jwt_secret_key: str = "dev-only-secret-change-me"
+    jwt_algorithm: str = "HS256"
+    jwt_expire_minutes: int = 60 * 8  # 8 hours
+
     @property
     def database_url(self) -> str:
         return (

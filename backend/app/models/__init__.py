@@ -9,6 +9,7 @@ from app.models.purchase_order import PurchaseOrder
 from app.models.invoice import Invoice
 from app.models.job import Job
 from app.models.reference import ReferenceDoc
+from app.models.user import User, UserRole
 from app.models.associations import (
     client_proposals,
     client_invoices,
@@ -30,6 +31,8 @@ __all__ = [
     "Invoice",
     "Job",
     "ReferenceDoc",
+    "User",
+    "UserRole",
     "client_proposals",
     "client_invoices",
     "subcontractor_proposals",
