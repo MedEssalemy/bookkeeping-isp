@@ -26,6 +26,12 @@ def _toggle(collection: list, item, add: bool, db: Session):
         db.commit()
 
 
+# ---- PROPOSAL |o--o{ INVOICE : "bills directly" (direct FK, read-only convenience) ----
+@router.get("/{proposal_id}/invoices", response_model=list[schemas.InvoiceRead])
+def list_proposal_direct_invoices(proposal_id: int, db: Session = Depends(get_db), _user=Depends(get_current_user)):
+    return crud.proposal.get(db, proposal_id).direct_invoices
+
+
 # ---- PROPOSAL }o--o{ JOB : "covers" ----
 @router.get("/{proposal_id}/jobs", response_model=list[schemas.JobRead])
 def list_proposal_jobs(proposal_id: int, db: Session = Depends(get_db), _user=Depends(get_current_user)):

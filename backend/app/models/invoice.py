@@ -11,11 +11,19 @@ class Invoice(Base):
     invoice_date = Column(Date, nullable=False)
     amount = Column(Numeric(12, 2), nullable=False)
 
-    # PURCHASE_ORDER ||--|{ INVOICE : "bills" -> every invoice bills exactly one PO
+    # PURCHASE_ORDER |o--o{ INVOICE : "bills" -> an invoice MAY bill a PO,
+    # but doesn't have to (it can stand alone or bill a proposal directly instead).
     purchase_order_id = Column(
-        Integer, ForeignKey("purchase_orders.id", ondelete="RESTRICT"), nullable=False
+        Integer, ForeignKey("purchase_orders.id", ondelete="SET NULL"), nullable=True
     )
     purchase_order = relationship("PurchaseOrder", back_populates="invoices")
+
+    # PROPOSAL |o--o{ INVOICE : "bills directly" -> used when an invoice is
+    # raised straight off a proposal, with no PO in between.
+    proposal_id = Column(
+        Integer, ForeignKey("proposals.id", ondelete="SET NULL"), nullable=True
+    )
+    proposal = relationship("Proposal", back_populates="direct_invoices")
 
     # CLIENT }o--o{ INVOICE : "receives"
     clients = relationship(

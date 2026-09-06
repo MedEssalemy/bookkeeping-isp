@@ -104,7 +104,10 @@ class InvoiceBase(BaseModel):
     invoice_number: str
     invoice_date: date
     amount: Decimal
-    purchase_order_id: int
+    # An invoice may bill a PO, bill a proposal directly, or stand alone
+    # (e.g. tied only to a Job via the "charges" relation) — all optional.
+    purchase_order_id: Optional[int] = None
+    proposal_id: Optional[int] = None
 
 
 class InvoiceCreate(InvoiceBase):
@@ -116,6 +119,7 @@ class InvoiceUpdate(BaseModel):
     invoice_date: Optional[date] = None
     amount: Optional[Decimal] = None
     purchase_order_id: Optional[int] = None
+    proposal_id: Optional[int] = None
 
 
 class InvoiceRead(InvoiceBase):

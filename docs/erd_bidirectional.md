@@ -53,11 +53,15 @@ erDiagram
     SUBCONTRACTOR }o--o{ INVOICE : "sends"
 
     PURCHASE_ORDER ||--o| PROPOSAL : "follows"
-    PURCHASE_ORDER ||--|{ INVOICE : "bills"
+    %% Relaxed from mandatory (||--|{) to optional (|o--o{): an invoice can
+    %% stand alone, or bill a proposal directly instead of going through a PO.
+    PURCHASE_ORDER |o--o{ INVOICE : "bills"
     PURCHASE_ORDER }o--o{ JOB : "includes"
 
     PROPOSAL }o--o{ JOB : "covers"
-    
+    %% New: lets an invoice be raised straight off a proposal, no PO in between
+    PROPOSAL |o--o{ INVOICE : "bills directly"
+
     JOB }o--o{ SUBCONTRACTOR : "handles"
     %%Direct relationship in case there is no PO
     JOB }o--o{ INVOICE : "charges"

@@ -39,7 +39,8 @@ Source diagram: [`docs/erd_bidirectional.md`](docs/erd_bidirectional.md).
 | `SUBCONTRACTOR }o--o{ PURCHASE_ORDER` (receives) | `subcontractor_purchase_orders` junction table |
 | `SUBCONTRACTOR }o--o{ INVOICE` (sends) | `subcontractor_invoices` junction table |
 | `PURCHASE_ORDER ||--o| PROPOSAL` (follows) | `purchase_orders.proposal_id` FK, nullable + unique |
-| `PURCHASE_ORDER ||--|{ INVOICE` (bills) | `invoices.purchase_order_id` FK, NOT NULL |
+| `PURCHASE_ORDER \|o--o{ INVOICE` (bills) | `invoices.purchase_order_id` FK, nullable — an invoice may bill a PO, or not |
+| `PROPOSAL \|o--o{ INVOICE` (bills directly) | `invoices.proposal_id` FK, nullable — lets an invoice bill a proposal with no PO in between, or stand fully alone if both are null |
 | `PURCHASE_ORDER }o--o{ JOB` (includes) | `purchase_order_jobs` junction table |
 | `PROPOSAL }o--o{ JOB` (covers) | `proposal_jobs` junction table |
 | `JOB }o--o{ SUBCONTRACTOR` (handles) | `job_subcontractors` junction table |

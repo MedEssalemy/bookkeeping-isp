@@ -25,6 +25,9 @@ class Proposal(Base):
         "PurchaseOrder", back_populates="proposal", uselist=False
     )
 
+    # PROPOSAL |o--o{ INVOICE : "bills directly" (no PO in between)
+    direct_invoices = relationship("Invoice", back_populates="proposal")
+
     # PROPOSAL }o--o{ JOB : "covers"
     jobs = relationship(
         "Job", secondary="proposal_jobs", back_populates="proposals"

@@ -1,8 +1,8 @@
 """initial schema
 
-Revision ID: 7965cc144c5c
+Revision ID: fa65af648a85
 Revises: 
-Create Date: 2026-08-18 23:58:46.695231
+Create Date: 2026-09-06 02:28:35.277796
 
 """
 from alembic import op
@@ -10,7 +10,7 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision = '7965cc144c5c'
+revision = 'fa65af648a85'
 down_revision = None
 branch_labels = None
 depends_on = None
@@ -119,8 +119,10 @@ def upgrade() -> None:
     sa.Column('invoice_number', sa.String(length=100), nullable=False),
     sa.Column('invoice_date', sa.Date(), nullable=False),
     sa.Column('amount', sa.Numeric(precision=12, scale=2), nullable=False),
-    sa.Column('purchase_order_id', sa.Integer(), nullable=False),
-    sa.ForeignKeyConstraint(['purchase_order_id'], ['purchase_orders.id'], ondelete='RESTRICT'),
+    sa.Column('purchase_order_id', sa.Integer(), nullable=True),
+    sa.Column('proposal_id', sa.Integer(), nullable=True),
+    sa.ForeignKeyConstraint(['proposal_id'], ['proposals.id'], ondelete='SET NULL'),
+    sa.ForeignKeyConstraint(['purchase_order_id'], ['purchase_orders.id'], ondelete='SET NULL'),
     sa.PrimaryKeyConstraint('id'),
     sa.UniqueConstraint('invoice_number')
     )
