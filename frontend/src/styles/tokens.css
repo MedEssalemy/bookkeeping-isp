@@ -1,0 +1,52 @@
+/* Design Tokens — Bookkeeping ISP
+   Source: UI Specification v3
+   Imported by main.ts → style.css already includes these; this file exists
+   as the canonical reference so feature code can @import it directly. */
+
+:root {
+  /* Core palette */
+  --color-text: #0f172a;
+  --color-text-muted: #64748b;
+  --color-text-subtle: #94a3b8;
+  --color-bg: #ffffff;
+  --color-bg-app: #f1f5f9;
+  --color-bg-subtle: #f8fafc;
+  --color-border: #e2e8f0;
+
+  /* Brand */
+  --color-primary: #1d4ed8;
+  --color-primary-hover: #1e40af;
+  --color-doc-blue: #1a3566;
+
+  /* Status badge colors */
+  --color-status-draft: #6b7280;
+  --color-status-sent: #2563eb;
+  --color-status-accepted: #059669;
+  --color-status-declined: #dc2626;
+  --color-status-pending: #d97706;
+  --color-status-cancelled: #9ca3af;
+  --color-status-issued: #7c3aed;
+
+  /* Semantic */
+  --color-success: #059669;
+  --color-error: #dc2626;
+  --color-warning: #d97706;
+  --color-info: #2563eb;
+
+  /* Typography */
+  --font-sans: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+  --font-mono: ui-monospace, Consolas, monospace;
+
+  /* Layout */
+  --sidebar-width: 230px;
+  --sidebar-rail-width: 56px;
+  --topbar-height: 56px;
+  --slideover-width: 480px;
+  --modal-max-width: 480px;
+
+  /* Shadows */
+  --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.04);
+  --shadow-modal:
+    0 20px 25px -5px rgba(0, 0, 0, 0.1),
+    0 10px 10px -5px rgba(0, 0, 0, 0.04);
+}

@@ -15,10 +15,11 @@ venv/
 .idea/
 .DS_Store
 
-# --- Frontend (placeholder for next iteration) ---
+# --- Frontend ---
 frontend/node_modules/
 frontend/dist/
 frontend/.env
+frontend/.env.local
 
 # --- Docker ---
 *.log

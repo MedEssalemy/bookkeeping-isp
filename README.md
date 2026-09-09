@@ -1,13 +1,15 @@
-# ERD Backend — Client / Subcontractor / Proposal / PO / Invoice / Job
+# Bookkeeping ISP — Backend + Frontend Monorepo
 
-Backend-only implementation of the ERD in `erd_bidirectional.md`, built with
-**FastAPI + SQLAlchemy + Alembic + PostgreSQL**, containerized with Docker Compose.
+Backend implementation of the ERD in `docs/erd_bidirectional.md`, built with
+**FastAPI + SQLAlchemy + Alembic + PostgreSQL**, merged into one repo with the
+**Vue 3 + Vite** frontend (originally `bookkeeping-isp`), all containerized
+with Docker Compose.
 
 ```
 project/
 ├── docs/
 │   └── erd_bidirectional.md  # source-of-truth ERD this schema was built from
-├── backend/                 # FastAPI service (this iteration)
+├── backend/                 # FastAPI service
 │   ├── app/
 │   │   ├── models/          # SQLAlchemy models + M:N junction tables
 │   │   ├── schemas/         # Pydantic request/response schemas
@@ -15,14 +17,19 @@ project/
 │   │   ├── routers/         # one router per entity + relationship endpoints
 │   │   ├── config.py        # env-based settings
 │   │   ├── database.py      # engine / session / Base
+│   │   ├── security.py      # password hashing + JWT + auth dependencies
 │   │   └── main.py          # FastAPI app entrypoint
 │   ├── alembic/              # DB migrations
+│   ├── scripts/create_user.py  # CLI for creating/updating user accounts
 │   ├── requirements.txt
 │   ├── Dockerfile
 │   └── .env.example
-├── frontend/                 # empty placeholder — wired into docker-compose.yml,
-│                              # populate in the next iteration (React/Vite/etc.)
-├── docker-compose.yml        # postgres + backend (frontend service commented out)
+├── frontend/                 # Vue 3 + Vite app (bookkeeping-isp)
+│   ├── src/
+│   ├── vite.config.ts        # dev-server proxy: /api -> backend
+│   ├── Dockerfile
+│   └── .env.development / .env.production  # VITE_USE_MOCKS flag
+├── docker-compose.yml         # postgres + backend + frontend, all networked together
 └── .gitignore
 ```
 
@@ -83,6 +90,28 @@ without changing test credentials.
 Set a real `jwt_secret_key` in `backend/.env` before deploying anywhere beyond
 your own machine — the default in `config.py` is dev-only.
 
+## Current state: what's real vs. mocked
+
+Merging the two repos wires them together and proves the connection works —
+it does **not** mean every screen is live yet. Be precise about this when
+testing:
+
+- **Login is real and tested end-to-end**: frontend (port 5173) → Vite proxy
+  → backend (port 8000) → Postgres → JWT back. To actually use it, uncomment
+  the real `login()` in `frontend/src/stores/auth.ts` (marked
+  `UNCOMMENT WHEN API IS READY`) and comment out the temp mock one above it.
+- **Everything else still runs on mocks** (`VITE_USE_MOCKS=true` by default).
+  The frontend's resource files (`src/api/clients.ts`, `invoices.ts`, etc.)
+  already branch on this flag and call real endpoints like `/clients/lookup`,
+  `/contractors/names`, `/pos/next-number` — but the backend doesn't expose
+  those routes yet. It currently exposes a simpler generic CRUD API
+  (`/clients/`, `/clients/{id}`, etc. — see the ERD mapping table above).
+- **Don't flip `VITE_USE_MOCKS` to `false`** until those endpoint contracts
+  are aligned — most screens would 404 immediately.
+
+Aligning the backend's routes to match what the frontend already expects
+is the natural next piece of work.
+
 ## Prerequisites
 
 - Docker + Docker Compose (recommended path), **or**
@@ -98,13 +127,19 @@ All commands below are run from the **project root** (the folder containing `doc
 # 1. Copy the env template and adjust credentials if you like
 cp backend/.env.example backend/.env
 
-# 2. Build and start Postgres + the API (migrations run automatically on boot)
+# 2. Build and start Postgres + the API + the frontend (migrations run automatically on boot)
 docker compose up --build
 
-# API now available at:
+# Now available at:
+#   http://localhost:5173        (the frontend app)
 #   http://localhost:8000/docs   (interactive Swagger UI)
 #   http://localhost:8000/health
 ```
+
+Note: the frontend's `package.json` has a pre-existing dependency conflict
+between Tiptap packages (unrelated to this merge) — the Dockerfile installs
+with `--legacy-peer-deps` to work around it. If you ever run `npm install`
+locally outside Docker, do the same: `npm install --legacy-peer-deps`.
 
 To stop: `docker compose down` (add `-v` to also drop the Postgres volume).
 
