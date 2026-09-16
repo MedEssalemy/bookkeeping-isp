@@ -55,8 +55,24 @@ Source diagram: [`docs/erd_bidirectional.md`](docs/erd_bidirectional.md).
 | `Reference }o--o{ PROPOSAL` | `reference_proposals` junction table. Entity renamed `ReferenceDoc` / table `reference_docs` because `REFERENCES` is a reserved PostgreSQL keyword. |
 
 Every model + relationship was verified against a real local Postgres instance
-(`alembic revision --autogenerate` correctly detected all 18 tables; create,
+(`alembic revision --autogenerate` correctly detected all tables; create,
 link/unlink, and FK-constraint behavior were exercised via live HTTP requests).
+
+### Client fields (flat contact model)
+
+`clients` carries the frontend's full `ClientContact` field set directly on
+one row — `name`, `address` (required), plus optional `title`,
+`business_name`, `department`, `phone`, `email`, `city`, `county`, `state`,
+`zip`, `address_full`, and `facility`.
+
+This is a deliberate **flat** model: each row is one contact person, and
+`business_name`/address fields are duplicated across every contact at the
+same business rather than normalized into a separate `businesses` table.
+That's simpler to build and query today, at the cost of having to update
+shared info (like a business's address) on every one of its contacts
+separately if it changes. If that duplication becomes painful once there's
+real data, splitting into `businesses` + `contacts` tables is the natural
+next step — but wasn't needed yet.
 
 ## Authentication
 

@@ -16,7 +16,18 @@ from pydantic import BaseModel, EmailStr, ConfigDict
 # ---------- Client ----------
 class ClientBase(BaseModel):
     name: str
-    email: EmailStr
+    address: str
+    title: Optional[str] = None
+    business_name: Optional[str] = None
+    department: Optional[str] = None
+    phone: Optional[str] = None
+    email: Optional[EmailStr] = None
+    city: Optional[str] = None
+    county: Optional[str] = None
+    state: Optional[str] = None
+    zip: Optional[str] = None
+    address_full: Optional[str] = None
+    facility: Optional[str] = None
 
 
 class ClientCreate(ClientBase):
@@ -25,7 +36,18 @@ class ClientCreate(ClientBase):
 
 class ClientUpdate(BaseModel):
     name: Optional[str] = None
+    address: Optional[str] = None
+    title: Optional[str] = None
+    business_name: Optional[str] = None
+    department: Optional[str] = None
+    phone: Optional[str] = None
     email: Optional[EmailStr] = None
+    city: Optional[str] = None
+    county: Optional[str] = None
+    state: Optional[str] = None
+    zip: Optional[str] = None
+    address_full: Optional[str] = None
+    facility: Optional[str] = None
 
 
 class ClientRead(ClientBase):

@@ -1,8 +1,8 @@
 """initial schema
 
-Revision ID: fa65af648a85
+Revision ID: 591fc2b8356f
 Revises: 
-Create Date: 2026-09-06 02:28:35.277796
+Create Date: 2026-09-16 22:27:30.696736
 
 """
 from alembic import op
@@ -10,7 +10,7 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision = 'fa65af648a85'
+revision = '591fc2b8356f'
 down_revision = None
 branch_labels = None
 depends_on = None
@@ -21,9 +21,21 @@ def upgrade() -> None:
     op.create_table('clients',
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('name', sa.String(length=255), nullable=False),
-    sa.Column('email', sa.String(length=255), nullable=False),
+    sa.Column('address', sa.String(length=255), nullable=False),
+    sa.Column('title', sa.String(length=100), nullable=True),
+    sa.Column('business_name', sa.String(length=255), nullable=True),
+    sa.Column('department', sa.String(length=100), nullable=True),
+    sa.Column('phone', sa.String(length=50), nullable=True),
+    sa.Column('email', sa.String(length=255), nullable=True),
+    sa.Column('city', sa.String(length=100), nullable=True),
+    sa.Column('county', sa.String(length=100), nullable=True),
+    sa.Column('state', sa.String(length=50), nullable=True),
+    sa.Column('zip', sa.String(length=15), nullable=True),
+    sa.Column('address_full', sa.String(length=400), nullable=True),
+    sa.Column('facility', sa.String(length=255), nullable=True),
     sa.PrimaryKeyConstraint('id')
     )
+    op.create_index(op.f('ix_clients_business_name'), 'clients', ['business_name'], unique=False)
     op.create_index(op.f('ix_clients_email'), 'clients', ['email'], unique=True)
     op.create_index(op.f('ix_clients_id'), 'clients', ['id'], unique=False)
     op.create_table('jobs',
@@ -194,5 +206,6 @@ def downgrade() -> None:
     op.drop_table('jobs')
     op.drop_index(op.f('ix_clients_id'), table_name='clients')
     op.drop_index(op.f('ix_clients_email'), table_name='clients')
+    op.drop_index(op.f('ix_clients_business_name'), table_name='clients')
     op.drop_table('clients')
     # ### end Alembic commands ###
