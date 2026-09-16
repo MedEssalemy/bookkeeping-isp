@@ -8,7 +8,22 @@ class Subcontractor(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String(255), nullable=False)
-    contact = Column(String(255), nullable=True)
+    # frontend/src/types/common.ts: `type Contractor = ClientContact` — the
+    # frontend uses the exact same contact shape for subcontractors as for
+    # clients, so this mirrors app/models/client.py's flat fields field-for-field
+    # (replaces the old generic `contact` string).
+    address = Column(String(255), nullable=False, default="")
+    title = Column(String(100), nullable=True)
+    business_name = Column(String(255), nullable=True, index=True)
+    department = Column(String(100), nullable=True)
+    phone = Column(String(50), nullable=True)
+    email = Column(String(255), nullable=True, unique=True, index=True)
+    city = Column(String(100), nullable=True)
+    county = Column(String(100), nullable=True)
+    state = Column(String(50), nullable=True)
+    zip = Column(String(15), nullable=True)
+    address_full = Column(String(400), nullable=True)
+    facility = Column(String(255), nullable=True)
 
     # SUBCONTRACTOR }o--o{ PROPOSAL : "sends"
     proposals = relationship(

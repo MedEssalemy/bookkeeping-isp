@@ -74,6 +74,11 @@ separately if it changes. If that duplication becomes painful once there's
 real data, splitting into `businesses` + `contacts` tables is the natural
 next step — but wasn't needed yet.
 
+`subcontractors` mirrors this exactly, field-for-field (replacing the old
+generic `contact` string) — the frontend's own `Contractor` type is
+literally defined as `= ClientContact`, i.e. subcontractors and clients use
+the identical contact shape on that side of the codebase.
+
 ## Authentication
 
 The API requires a Bearer token on every route except `POST /api/v1/auth/login`.

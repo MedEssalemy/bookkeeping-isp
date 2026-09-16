@@ -1,8 +1,8 @@
 """initial schema
 
-Revision ID: 591fc2b8356f
+Revision ID: af2ddec8836c
 Revises: 
-Create Date: 2026-09-16 22:27:30.696736
+Create Date: 2026-09-16 22:36:40.713427
 
 """
 from alembic import op
@@ -10,7 +10,7 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision = '591fc2b8356f'
+revision = 'af2ddec8836c'
 down_revision = None
 branch_labels = None
 depends_on = None
@@ -62,9 +62,22 @@ def upgrade() -> None:
     op.create_table('subcontractors',
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('name', sa.String(length=255), nullable=False),
-    sa.Column('contact', sa.String(length=255), nullable=True),
+    sa.Column('address', sa.String(length=255), nullable=False),
+    sa.Column('title', sa.String(length=100), nullable=True),
+    sa.Column('business_name', sa.String(length=255), nullable=True),
+    sa.Column('department', sa.String(length=100), nullable=True),
+    sa.Column('phone', sa.String(length=50), nullable=True),
+    sa.Column('email', sa.String(length=255), nullable=True),
+    sa.Column('city', sa.String(length=100), nullable=True),
+    sa.Column('county', sa.String(length=100), nullable=True),
+    sa.Column('state', sa.String(length=50), nullable=True),
+    sa.Column('zip', sa.String(length=15), nullable=True),
+    sa.Column('address_full', sa.String(length=400), nullable=True),
+    sa.Column('facility', sa.String(length=255), nullable=True),
     sa.PrimaryKeyConstraint('id')
     )
+    op.create_index(op.f('ix_subcontractors_business_name'), 'subcontractors', ['business_name'], unique=False)
+    op.create_index(op.f('ix_subcontractors_email'), 'subcontractors', ['email'], unique=True)
     op.create_index(op.f('ix_subcontractors_id'), 'subcontractors', ['id'], unique=False)
     op.create_table('users',
     sa.Column('id', sa.Integer(), nullable=False),
@@ -197,6 +210,8 @@ def downgrade() -> None:
     op.drop_index(op.f('ix_users_email'), table_name='users')
     op.drop_table('users')
     op.drop_index(op.f('ix_subcontractors_id'), table_name='subcontractors')
+    op.drop_index(op.f('ix_subcontractors_email'), table_name='subcontractors')
+    op.drop_index(op.f('ix_subcontractors_business_name'), table_name='subcontractors')
     op.drop_table('subcontractors')
     op.drop_index(op.f('ix_reference_docs_id'), table_name='reference_docs')
     op.drop_table('reference_docs')
