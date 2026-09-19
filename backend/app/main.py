@@ -14,7 +14,7 @@ from app.routers import (
 )
 
 app = FastAPI(
-    title="ERD Backend API",
+    title="Bookkeeping Project API",
     description="Backend for the client/subcontractor/proposal/PO/invoice/job ERD",
     version="0.1.0",
 )
