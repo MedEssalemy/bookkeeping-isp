@@ -1,0 +1,19 @@
+# Production image: static Vite build served by nginx, which also proxies
+# /api to the backend (BACKEND_URL), so the browser talks to one origin.
+# The plain Dockerfile is the dev-server image used by docker-compose.
+
+FROM node:20-slim AS build
+WORKDIR /app
+COPY package*.json ./
+# --legacy-peer-deps: pre-existing Tiptap peer-dependency conflict (see Dockerfile)
+RUN npm ci --legacy-peer-deps
+COPY . .
+# Type-checking runs in CI; the image only needs the bundle.
+RUN npx vite build
+
+FROM nginx:1.27-alpine
+# The nginx image renders /etc/nginx/templates/*.template with envsubst at start.
+COPY nginx/default.conf.template /etc/nginx/templates/default.conf.template
+COPY --from=build /app/dist /usr/share/nginx/html
+ENV BACKEND_URL=http://backend:8000
+EXPOSE 80

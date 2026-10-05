@@ -40,12 +40,12 @@ Source diagram: [`docs/erd_bidirectional.md`](docs/erd_bidirectional.md).
 | ERD relationship | Implementation |
 |---|---|
 | `CLIENT }o--o{ PROPOSAL` (receives) | `client_proposals` junction table |
-| `CLIENT ||--o{ PURCHASE_ORDER` (sends) | `purchase_orders.client_id` FK, NOT NULL |
+| `CLIENT ||--o{ PURCHASE_ORDER` (sends) | `purchase_orders.client_id` FK, nullable (set for received POs whose counterparty matches a client) |
 | `CLIENT }o--o{ INVOICE` (receives) | `client_invoices` junction table |
 | `SUBCONTRACTOR }o--o{ PROPOSAL` (sends) | `subcontractor_proposals` junction table |
 | `SUBCONTRACTOR }o--o{ PURCHASE_ORDER` (receives) | `subcontractor_purchase_orders` junction table |
 | `SUBCONTRACTOR }o--o{ INVOICE` (sends) | `subcontractor_invoices` junction table |
-| `PURCHASE_ORDER ||--o| PROPOSAL` (follows) | `purchase_orders.proposal_id` FK, nullable + unique |
+| `PURCHASE_ORDER ||--o| PROPOSAL` (follows) | `purchase_orders.proposal_id` FK, nullable |
 | `PURCHASE_ORDER \|o--o{ INVOICE` (bills) | `invoices.purchase_order_id` FK, nullable — an invoice may bill a PO, or not |
 | `PROPOSAL \|o--o{ INVOICE` (bills directly) | `invoices.proposal_id` FK, nullable — lets an invoice bill a proposal with no PO in between, or stand fully alone if both are null |
 | `PURCHASE_ORDER }o--o{ JOB` (includes) | `purchase_order_jobs` junction table |
@@ -113,25 +113,31 @@ your own machine — the default in `config.py` is dev-only.
 
 ## Current state: what's real vs. mocked
 
-Merging the two repos wires them together and proves the connection works —
-it does **not** mean every screen is live yet. Be precise about this when
-testing:
+The frontend runs against the real API and Postgres (`VITE_USE_MOCKS=false`):
 
-- **Login is real and tested end-to-end**: frontend (port 5173) → Vite proxy
-  → backend (port 8000) → Postgres → JWT back. To actually use it, uncomment
-  the real `login()` in `frontend/src/stores/auth.ts` (marked
-  `UNCOMMENT WHEN API IS READY`) and comment out the temp mock one above it.
-- **Everything else still runs on mocks** (`VITE_USE_MOCKS=true` by default).
-  The frontend's resource files (`src/api/clients.ts`, `invoices.ts`, etc.)
-  already branch on this flag and call real endpoints like `/clients/lookup`,
-  `/contractors/names`, `/pos/next-number` — but the backend doesn't expose
-  those routes yet. It currently exposes a simpler generic CRUD API
-  (`/clients/`, `/clients/{id}`, etc. — see the ERD mapping table above).
-- **Don't flip `VITE_USE_MOCKS` to `false`** until those endpoint contracts
-  are aligned — most screens would 404 immediately.
+- **Login is real**: `POST /api/v1/auth/login` issues a JWT; every other route
+  requires it. Create users with `scripts/create_user.py` (see Authentication).
+- **All screens read/write the database**: proposals, purchase orders and
+  invoices (both directions), clients, contractors, config lists (job codes,
+  payment terms, MP references, MP destinations), tax-rate lookup and
+  attachments. The backend routes mirror the frontend's `src/api/*.ts` calls
+  (`/proposals`, `/pos`, `/invoices`, `/clients/contacts/all`,
+  `/contractors/all`, `/config-lists/{name}`, `/mp-destinations`,
+  `/tax-rates/lookup`, `/{module}/{id}/attachments`, ...).
+- **Seed data**: on boot, `scripts/seed.py` fills empty config lists, tax rates
+  and the initial client contacts. It only touches empty tables, so it never
+  overwrites your edits. Documents start empty.
+- **Still placeholder**: `.docx` document generation (`/…/{id}/document`
+  returns a text stub), and the Overview / P&L / Expenses / Bookkeeping /
+  Taxes pages, which have no data wiring yet.
 
-Aligning the backend's routes to match what the frontend already expects
-is the natural next piece of work.
+Documents store their full form shape (counterparty snapshot, totals, line
+items as JSONB) on the ERD tables; the ERD links (`client_proposals`,
+`subcontractor_invoices`, `purchase_orders.client_id`, ...) are filled
+automatically by matching the counterparty name to a client/contractor row.
+
+Set `VITE_USE_MOCKS=true` (in `docker-compose.yml` or `frontend/.env.development`)
+to run the UI on in-memory mocks without the backend.
 
 ## Prerequisites
 
@@ -200,49 +206,37 @@ to link a client and proposal. Full interactive docs at `/docs`.
 
 ---
 
-## Git usage
+## Git workflow, CI/CD and deployment
 
-Run these from the **project root** (`project/`).
-
-### First-time setup
-
-```bash
-git init
-git add .
-git commit -m "Initial backend scaffold: FastAPI + SQLAlchemy + Alembic + Postgres"
-```
-
-Then connect it to a remote (GitHub/GitLab/etc.) and push:
+Two long-lived branches: **`dev`** (deployed to the Azure dev environment on
+every merge) and **`prod`** (deployed + tagged `vX.Y.Z` when the auto-generated
+release PR is merged). Full details and the one-time Azure/GitHub setup:
+[`infra/azure/README.md`](infra/azure/README.md).
 
 ```bash
-git remote add origin <your-repo-url>
-git branch -M main
-git push -u origin main
+git checkout dev && git pull
+git checkout -b feat/short-description
+# ...changes...
+git commit -m "feat: short description"
+git push -u origin feat/short-description
+# open a PR into dev with a Conventional Commit title (feat:/fix:/chore: ...),
+# wait for CI, squash-merge -> dev deploys -> a "release: vX.Y.Z" PR to prod appears
 ```
 
-### Day-to-day workflow
+Backend tests (run in CI against Postgres; locally against a throwaway DB):
 
 ```bash
-git checkout -b feature/short-description   # branch per feature/fix
-# ...make changes in backend/...
-git add .
-git status                                  # sanity-check what's staged
-git commit -m "Add X"
-git push -u origin feature/short-description
-# open a PR, merge into main
+docker compose exec db createdb -U app_user erd_test
+docker compose exec -e POSTGRES_DB=erd_test backend sh -c "pip install -q -r requirements-dev.txt && pytest"
 ```
 
-### Notes
+Notes:
 
-- `backend/.env` is git-ignored on purpose (it holds local DB credentials) —
-  only `.env.example` is committed. Anyone cloning the repo copies it themselves.
-- `frontend/` is currently an empty placeholder tracked with a `.gitkeep`,
-  wired into `docker-compose.yml` (commented out) so the next iteration just
-  has to add a `frontend/Dockerfile`, uncomment the service, and populate the folder.
-- Generated migration files under `backend/alembic/versions/` **should** be
-  committed — they're the source of truth for schema history, not local artifacts.
-- If you rename/change models, always commit the model change and its
-  corresponding Alembic migration file in the same commit.
+- `backend/.env` is git-ignored (local DB credentials); only `.env.example` is committed.
+  Deployed environments get their secrets from Azure Key Vault.
+- Generated migration files under `backend/alembic/versions/` **must** be
+  committed together with the model change — CI fails if models and
+  migrations drift (`alembic check`).
 
 ---
 

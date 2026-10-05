@@ -1,0 +1,88 @@
+name: Deploy dev
+
+# Every merge into dev: build + deploy to the dev environment, then open (or
+# refresh) the release PR dev -> prod titled with the next version.
+on:
+  push:
+    branches: [dev]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-dev
+  cancel-in-progress: false
+
+jobs:
+  meta:
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.tag.outputs.tag }}
+    steps:
+      - id: tag
+        run: echo "tag=sha-${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+
+  deploy:
+    needs: meta
+    uses: ./.github/workflows/_build-deploy.yml
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+    with:
+      environment: dev
+      image_tag: ${{ needs.meta.outputs.tag }}
+      extra_tag: dev
+
+  release-pr:
+    name: Open/refresh release PR to prod
+    needs: [meta, deploy]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # full history + tags for the version calculation
+
+      - name: Compute next version and changelog
+        id: version
+        run: |
+          git fetch origin prod --quiet
+          ahead=$(git rev-list --count origin/prod..HEAD)
+          echo "ahead=$ahead" >> "$GITHUB_OUTPUT"
+          version=$(bash .github/scripts/next-version.sh HEAD)
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          {
+            echo "body<<EOF"
+            echo "Release **$version** — merging \`dev\` into \`prod\` deploys it to production and tags \`$version\`."
+            echo
+            if [ "${{ needs.deploy.outputs.deployed }}" = "true" ]; then
+              echo "Currently on dev as image tag \`${{ needs.meta.outputs.tag }}\`."
+            else
+              echo "Images built as \`${{ needs.meta.outputs.tag }}\` (dev deploy skipped: Azure not configured yet)."
+            fi
+            echo
+            echo "### Changes since the last release"
+            git log --no-merges --format='- %s (%h)' origin/prod..HEAD
+            echo
+            echo "> Use **Create a merge commit** (not squash) so the release keeps the individual commits."
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Create or update the PR
+        if: steps.version.outputs.ahead != '0'
+        env:
+          # PRs opened with GITHUB_TOKEN don't trigger other workflows; set a
+          # RELEASE_PR_TOKEN (fine-grained PAT: contents+pull-requests write)
+          # if you want CI to run on the release PR too.
+          GH_TOKEN: ${{ secrets.RELEASE_PR_TOKEN || github.token }}
+          TITLE: "release: ${{ steps.version.outputs.version }}"
+          BODY: ${{ steps.version.outputs.body }}
+        run: |
+          number=$(gh pr list --base prod --head dev --state open --json number --jq '.[0].number')
+          if [ -n "$number" ]; then
+            gh pr edit "$number" --title "$TITLE" --body "$BODY"
+            echo "Updated release PR #$number -> $TITLE"
+          else
+            gh pr create --base prod --head dev --title "$TITLE" --body "$BODY"
+          fi

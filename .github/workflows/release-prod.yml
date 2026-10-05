@@ -1,0 +1,68 @@
+name: Release prod
+
+# Merging the release PR into prod: build + deploy to production, then tag
+# the release (vX.Y.Z) and publish GitHub release notes.
+on:
+  push:
+    branches: [prod]
+
+concurrency:
+  group: release-prod
+  cancel-in-progress: false
+
+jobs:
+  version:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      version: ${{ steps.v.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Resolve version
+        id: v
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # Prefer the version from the merged release PR title ("release: vX.Y.Z");
+          # fall back to computing it (e.g. for a direct push / hotfix).
+          title=$(gh api "repos/${GITHUB_REPOSITORY}/commits/${GITHUB_SHA}/pulls" --jq '.[0].title // ""' || true)
+          version=$(grep -oE 'v[0-9]+\.[0-9]+\.[0-9]+' <<<"$title" | head -n1 || true)
+          [ -n "$version" ] || version=$(bash .github/scripts/next-version.sh HEAD)
+          if git rev-parse -q --verify "refs/tags/$version" >/dev/null; then
+            echo "::error::Tag $version already exists. Bump the release PR title or delete the tag."
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "Releasing $version"
+
+  deploy:
+    needs: version
+    uses: ./.github/workflows/_build-deploy.yml
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+    with:
+      environment: prod
+      image_tag: ${{ needs.version.outputs.version }}
+      extra_tag: prod
+
+  tag:
+    name: Tag & GitHub release
+    needs: [version, deploy]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Create release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.version.outputs.version }}
+        run: |
+          gh release create "$VERSION" --target "$GITHUB_SHA" --title "$VERSION" --generate-notes
