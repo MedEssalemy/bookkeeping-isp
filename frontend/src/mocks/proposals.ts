@@ -486,6 +486,10 @@ export function mockNextProposalNumber(type: ProposalType): Promise<string> {
 export function mockCreateProposal(payload: ProposalPayload): Promise<Proposal> {
   // 409: duplicate number conflict
   const submittedNumber = payload.number
+  if (submittedNumber && payload.replace_existing) {
+    const dup = PROPOSALS.findIndex((p) => p.number === submittedNumber)
+    if (dup !== -1) PROPOSALS.splice(dup, 1)
+  }
   if (submittedNumber && PROPOSALS.some((p) => p.number === submittedNumber)) {
     return Promise.reject({ status: 409, message: 'Proposal number already exists' })
   }

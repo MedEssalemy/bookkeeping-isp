@@ -394,7 +394,7 @@ async function handleImportFile(e: Event) {
       )
       return
     }
-    importPlan.value = planImport(parsed.rows)
+    importPlan.value = planImport(parsed.rows, data.value ?? [])
     importModalOpen.value = true
   } catch (err) {
     showBanner(

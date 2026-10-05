@@ -20,7 +20,7 @@
 
     <p class="attachments__note">
       Attach the counterparty's original file (PDF, Word, Excel, or image; ≤ {{ MAX_MB }} MB, up to {{ MAX_FILES }}).
-      Not persisted until the backend lands — files clear on refresh.
+      <template v-if="useMocks">Mock mode — files clear on refresh.</template>
     </p>
 
     <div v-if="error" class="attachments__error">{{ error }}</div>
@@ -71,6 +71,7 @@ import {
 } from '../../api/attachments'
 import type { Attachment } from '../../types/common'
 import ConfirmModal from '../base/ConfirmModal.vue'
+import { useMocks } from '../../mocks'
 
 const props = defineProps<{ module: AttachmentModule; recordId: string }>()
 
@@ -116,8 +117,13 @@ async function onFilePicked(e: Event) {
   await addAttachment({ recordId: props.recordId, file })
 }
 
-function download(a: Attachment) {
-  downloadAttachment(props.module, props.recordId, a)
+async function download(a: Attachment) {
+  error.value = ''
+  try {
+    await downloadAttachment(props.module, props.recordId, a)
+  } catch {
+    error.value = `Couldn't download “${a.file_name}”.`
+  }
 }
 
 const deleteOpen = ref(false)

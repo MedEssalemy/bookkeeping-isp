@@ -11,6 +11,9 @@ from app.routers import (
     invoices,
     jobs,
     references,
+    config_lists,
+    tax_rates,
+    attachments,
 )
 
 app = FastAPI(
@@ -36,6 +39,10 @@ app.include_router(purchase_orders.router, prefix=settings.api_prefix)
 app.include_router(invoices.router, prefix=settings.api_prefix)
 app.include_router(jobs.router, prefix=settings.api_prefix)
 app.include_router(references.router, prefix=settings.api_prefix)
+app.include_router(config_lists.router, prefix=settings.api_prefix)
+app.include_router(tax_rates.router, prefix=settings.api_prefix)
+# Last: its /{module}/{record_id}/attachments pattern is the most generic.
+app.include_router(attachments.router, prefix=settings.api_prefix)
 
 
 @app.get("/health", tags=["health"])

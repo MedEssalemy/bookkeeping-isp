@@ -632,10 +632,10 @@ async function handleSave() {
   if (!validate()) return
   await doSave()
 }
-async function doSave() {
+async function doSave(replace = false) {
   saveLoading.value = true
   try {
-    const payload = buildPayload()
+    const payload = { ...buildPayload(), ...(replace ? { replace_existing: true } : {}) }
     const saved = isEdit
       ? await updateInvoice({ id: invoiceId.value, payload })
       : await createInvoice(payload)
@@ -650,7 +650,7 @@ async function doSave() {
 }
 function onDuplicateReplace() {
   showDuplicateConfirm.value = false
-  doSave()
+  doSave(true)
 }
 function handleCancel() {
   if (isDirty.value) showCancelConfirm.value = true

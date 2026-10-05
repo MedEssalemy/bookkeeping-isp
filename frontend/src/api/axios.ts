@@ -1,4 +1,4 @@
-import axios from 'axios'
+import axios, { type AxiosError } from 'axios'
 
 // ─── Axios Instance ───────────────────────────────────────────────────────────
 // All API calls go through this instance.
@@ -9,6 +9,8 @@ export const api = axios.create({
   headers: {
     'Content-Type': 'application/json',
   },
+  // Arrays as repeated keys (status=A&status=B) — what FastAPI's list params expect.
+  paramsSerializer: { indexes: null },
 })
 
 // ─── Request Interceptor ──────────────────────────────────────────────────────
@@ -27,14 +29,40 @@ api.interceptors.request.use((config) => {
 // ─── Response Interceptor ─────────────────────────────────────────────────────
 // 401 → token expired or invalid. Clear auth state and redirect to login.
 // This fires for every API call in the app automatically.
+//
+// Errors are rejected as a flat `ApiError` ({ status, message, ...detail }) —
+// the same shape the mocks reject with, so views can read `e.status`,
+// `e.count`, `e.linked` regardless of mode. FastAPI puts our payload in
+// `detail` (an object for app errors, a string or list for framework ones).
+
+export interface ApiError {
+  status?: number
+  message: string
+  [key: string]: unknown
+}
+
+function toApiError(error: AxiosError): ApiError {
+  const status = error.response?.status
+  const detail = (error.response?.data as { detail?: unknown } | undefined)?.detail
+  if (detail && typeof detail === 'object' && !Array.isArray(detail)) {
+    const d = detail as Record<string, unknown>
+    return { ...d, status, message: String(d.message ?? error.message) }
+  }
+  if (Array.isArray(detail)) {
+    const first = detail[0] as { msg?: string } | undefined
+    return { status, message: first?.msg ?? 'Validation error', errors: detail }
+  }
+  return { status, message: typeof detail === 'string' ? detail : error.message }
+}
 
 api.interceptors.response.use(
   (response) => response,
-  (error) => {
-    if (error.response?.status === 401) {
+  (error: AxiosError) => {
+    const isLogin = error.config?.url?.endsWith('/auth/login')
+    if (error.response?.status === 401 && !isLogin) {
       clearAuthAndRedirect()
     }
-    return Promise.reject(error)
+    return Promise.reject(toApiError(error))
   }
 )
 

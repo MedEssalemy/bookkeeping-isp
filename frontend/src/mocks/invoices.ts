@@ -327,6 +327,10 @@ function buildFromPayload(id: string, payload: InvoicePayload, existing?: Invoic
 }
 
 export function mockCreateInvoice(payload: InvoicePayload): Promise<Invoice> {
+  if (payload.number && payload.replace_existing) {
+    const dup = INVOICES.findIndex((inv) => inv.number === payload.number && inv.direction === payload.direction)
+    if (dup !== -1) INVOICES.splice(dup, 1)
+  }
   if (payload.number && INVOICES.some((inv) => inv.number === payload.number && inv.direction === payload.direction)) {
     return Promise.reject({ status: 409, message: 'Invoice number already exists' })
   }

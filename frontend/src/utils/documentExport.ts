@@ -1,6 +1,6 @@
-import { mockGetProposal } from '../mocks/proposals'
-import { mockGetPO } from '../mocks/purchaseOrders'
-import { mockGetInvoice } from '../mocks/invoices'
+import { getProposal } from '../api/proposals'
+import { getPO } from '../api/purchaseOrders'
+import { getInvoice } from '../api/invoices'
 import type { Proposal, StandardLineItem, MPLineItem } from '../types/proposal'
 import type { PurchaseOrder } from '../types/purchaseOrder'
 import type { Invoice } from '../types/invoice'
@@ -124,15 +124,15 @@ export async function exportDocuments(module: DocModule, ids: string[], filename
 
   if (module === 'proposals') {
     headers = PROPOSAL_HEADERS
-    const docs = await Promise.all(ids.map((id) => mockGetProposal(id)))
+    const docs = await Promise.all(ids.map((id) => getProposal(id)))
     for (const d of docs) if (d) rows.push(...proposalRows(d))
   } else if (module === 'pos') {
     headers = PO_HEADERS
-    const docs = await Promise.all(ids.map((id) => mockGetPO(id)))
+    const docs = await Promise.all(ids.map((id) => getPO(id)))
     for (const d of docs) if (d) rows.push(...poRows(d))
   } else {
     headers = INVOICE_HEADERS
-    const docs = await Promise.all(ids.map((id) => mockGetInvoice(id)))
+    const docs = await Promise.all(ids.map((id) => getInvoice(id)))
     for (const d of docs) if (d) rows.push(...invoiceRows(d))
   }
 

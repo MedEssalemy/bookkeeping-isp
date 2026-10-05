@@ -169,6 +169,9 @@ export interface ProposalPayload {
 
   notes?: string
   services_provided?: string
+
+  /** Confirmed delete-and-replace of an existing document with the same number. */
+  replace_existing?: boolean
 }
 
 // ── Clients ───────────────────────────────────────────────────────────────────

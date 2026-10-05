@@ -16,7 +16,7 @@ class Client(Base):
     business_name = Column(String(255), nullable=True, index=True)
     department = Column(String(100), nullable=True)
     phone = Column(String(50), nullable=True)
-    email = Column(String(255), nullable=True, unique=True, index=True)
+    email = Column(String(255), nullable=True, index=True)
     city = Column(String(100), nullable=True)
     county = Column(String(100), nullable=True)
     state = Column(String(50), nullable=True)
