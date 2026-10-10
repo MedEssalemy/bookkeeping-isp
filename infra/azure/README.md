@@ -81,7 +81,7 @@ az account set --subscription "<subscription id>"
 ./infra/azure/setup.sh prod
 ```
 
-Optional: `LOCATION=francecentral PREFIX=bookkeeping ./infra/azure/setup.sh dev`.
+The default region is West US 2 (`westus2`): on this subscription East US refuses new Postgres servers and East US 2 refuses the B1ms size (`SkuNotAvailable`). New subscriptions often get such per-region capacity limits; an Azure support request ("Service and subscription limits") can lift them. Override with e.g. `LOCATION=centralus ./infra/azure/setup.sh dev`, and use the same region for dev and prod. On Git Bash, prefix the command with `MSYS_NO_PATHCONV=1` so Azure resource IDs are not rewritten as Windows paths.
 Each run prints the GitHub variables for that environment. Rough cost per
 environment: Postgres B1ms ≈ $16/mo, ACR Basic ≈ $5/mo. The app scales to
 zero when idle, so it stays within the Container Apps free monthly grant; the

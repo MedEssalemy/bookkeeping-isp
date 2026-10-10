@@ -22,7 +22,9 @@ if [[ "$ENV_NAME" != "dev" && "$ENV_NAME" != "prod" ]]; then
   exit 1
 fi
 
-LOCATION="${LOCATION:-westeurope}"
+# West US 2: on this (new pay-as-you-go) subscription, East US refuses new
+# Postgres servers and East US 2 refuses the B1ms size; West US 2 accepts both.
+LOCATION="${LOCATION:-westus2}"
 PREFIX="${PREFIX:-bookkeeping}"
 GITHUB_REPO="${GITHUB_REPO:-MedEssalemy/bookkeeping-isp}"
 PG_SKU="${PG_SKU:-Standard_B1ms}"
@@ -46,11 +48,31 @@ GH_APP="gh-$PREFIX-$ENV_NAME-deploy"
 PLACEHOLDER="mcr.microsoft.com/k8se/quickstart:latest"
 
 step() { printf '\n==> %s\n' "$*"; }
-exists() { "$@" >/dev/null 2>&1; }
+# Reads right after a change are sometimes briefly wrong (a vault that exists
+# reported missing); ask three times before concluding something is absent.
+exists() {
+  for _ in 1 2 3; do
+    if "$@" >/dev/null 2>&1; then return 0; fi
+    sleep 5
+  done
+  return 1
+}
+# A resource can be missing from reads for a little while right after it is
+# created (seen with ACR); retry a read for up to two minutes.
+retry() {
+  for _ in $(seq 1 12); do
+    if "$@"; then return 0; fi
+    sleep 10
+  done
+  return 1
+}
 
 az extension add --name containerapp --upgrade --only-show-errors
-az provider register --namespace Microsoft.App --wait >/dev/null
-az provider register --namespace Microsoft.OperationalInsights --wait >/dev/null
+# A new subscription has none of these registered yet; registering is a no-op
+# when it already is. One per Azure service this script creates.
+for ns in Microsoft.App Microsoft.OperationalInsights Microsoft.KeyVault           Microsoft.ManagedIdentity Microsoft.ContainerRegistry Microsoft.DBforPostgreSQL; do
+  az provider register --namespace "$ns" --wait >/dev/null
+done
 
 step "Resource group $RG ($LOCATION)"
 az group create -n "$RG" -l "$LOCATION" -o none
@@ -86,7 +108,8 @@ ensure_secret() {
 }
 ensure_secret pg-password
 ensure_secret jwt-secret-key
-PG_PASSWORD="$(az keyvault secret show --vault-name "$KV" -n pg-password --query value -o tsv)"
+# The role grant above can take a minute to reach every Key Vault node.
+PG_PASSWORD="$(retry az keyvault secret show --vault-name "$KV" -n pg-password --query value -o tsv 2>/dev/null)"
 
 step "Managed identity $IDENTITY"
 az identity create -n "$IDENTITY" -g "$RG" -l "$LOCATION" -o none
@@ -99,7 +122,7 @@ step "Container registry $ACR"
 if ! exists az acr show -n "$ACR" -g "$RG"; then
   az acr create -n "$ACR" -g "$RG" -l "$LOCATION" --sku Basic -o none
 fi
-ACR_ID="$(az acr show -n "$ACR" -g "$RG" --query id -o tsv)"
+ACR_ID="$(retry az acr show -n "$ACR" -g "$RG" --query id -o tsv 2>/dev/null)"
 az role assignment create --assignee-object-id "$ID_PRINCIPAL" --assignee-principal-type ServicePrincipal \
   --role AcrPull --scope "$ACR_ID" -o none 2>/dev/null || true
 
@@ -110,9 +133,25 @@ if ! exists az postgres flexible-server show -n "$PG" -g "$RG"; then
   az postgres flexible-server create -n "$PG" -g "$RG" -l "$LOCATION" \
     --admin-user "$PG_ADMIN" --admin-password "$PG_PASSWORD" \
     --tier Burstable --sku-name "$PG_SKU" --storage-size 32 --version 16 \
-    --public-access 0.0.0.0 --yes -o none
+    --public-access 0.0.0.0 --yes -o none \
+    || echo "   create reported an error; checking whether the server exists anyway..."
 fi
-az postgres flexible-server db create -g "$RG" -s "$PG" -d "$PG_DB" -o none
+# The CLI's own read-back right after creating can 404 although the server is
+# fine. Wait for it to be Ready; a real failure (e.g. SkuNotAvailable) leaves
+# no server, so this times out and stops the script.
+PG_STATE="$(retry az postgres flexible-server show -n "$PG" -g "$RG" --query state -o tsv 2>/dev/null)"
+until [ "$PG_STATE" = "Ready" ]; do
+  echo "   server state: $PG_STATE"
+  sleep 20
+  PG_STATE="$(az postgres flexible-server show -n "$PG" -g "$RG" --query state -o tsv)"
+done
+# --public-access 0.0.0.0 normally adds this rule, but not when the create
+# command fails after the server exists (the read-back 404 above). Without it
+# nothing in Azure can connect and the app hangs on its first migration.
+retry az postgres flexible-server firewall-rule create --resource-group "$RG" --server-name "$PG" \
+  --name AllowAllAzureServicesAndResourcesWithinAzureIps \
+  --start-ip-address 0.0.0.0 --end-ip-address 0.0.0.0 -o none --only-show-errors
+retry az postgres flexible-server db create --resource-group "$RG" --server-name "$PG" --name "$PG_DB" -o none
 PG_HOST="$(az postgres flexible-server show -n "$PG" -g "$RG" --query fullyQualifiedDomainName -o tsv)"
 
 step "Container Apps environment $CAE"
