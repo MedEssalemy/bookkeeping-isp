@@ -58,16 +58,38 @@ title before merging — the prod workflow uses the version in that title.
 ## Secrets
 
 No passwords are stored in GitHub. Actions authenticates to Azure with
-**OIDC** (a federated credential trusting only this repo's `dev`/`prod`
-environments). The app secrets — `pg-password` and `jwt-secret-key` — are
-generated into each environment's **Azure Key Vault** and referenced by the
-Container App through its managed identity. The image is copied from GHCR
-into each environment's Azure Container Registry, pulled with the same
-identity.
+**OIDC**: each environment has its own Entra app, trusting only this repo's
+`dev` or `prod` GitHub environment and allowed to deploy only that
+environment's Container App. The app secrets (`pg-password`, plus
+`jwt-secret-key-dev` and `jwt-secret-key-prod`, so a dev login token is never
+valid on prod) are generated into the shared **Azure Key Vault** and
+referenced by the Container Apps through their managed identity. The image is
+copied from GHCR into the shared Azure Container Registry and pulled with the
+same identity.
+
+## Azure layout (shared by dev and prod)
+
+One resource group, `rg-bookkeeping`, holds everything. Only the apps and the
+databases exist once per environment:
+
+| Resource | Shared or per environment |
+|---|---|
+| PostgreSQL Flexible Server `pg-bookkeeping-<suffix>` (B1ms) | **shared**, with one **database per environment**: `erd_db` (prod) and `erd_db_dev` (dev). Dev can't touch prod's tables, and dev can be reset by dropping its database. |
+| Container registry `acrbookkeeping<suffix>` | shared (one image repo: dev's `sha-…` tags and prod's `vX.Y.Z` tags) |
+| Key Vault `kv-bookkeeping-<suffix>` | shared (one JWT key per environment) |
+| Managed identity `id-bookkeeping` | shared |
+| Container Apps environment `cae-bookkeeping` | shared |
+| Container App | per environment: `ca-bookkeeping-dev`, `ca-bookkeeping-prod` |
+| Entra deploy app (GitHub OIDC) | per environment: `gh-bookkeeping-<env>-deploy`, scoped to its own app |
+
+Rough cost: **≈ $21/month for both environments** (Postgres B1ms ≈ $16, ACR
+Basic ≈ $5). The apps scale to zero when idle and stay within the Container
+Apps free monthly grant; the first request after a quiet period takes a few
+seconds (cold start).
 
 ## One-time setup
 
-### 1. Azure (per environment)
+### 1. Azure (one run for both environments)
 
 Needs the [Azure CLI](https://learn.microsoft.com/cli/azure/install-azure-cli),
 an account that is **Owner** (or Contributor + User Access Administrator) on
@@ -77,20 +99,16 @@ Git Bash / WSL / Cloud Shell:
 ```bash
 az login
 az account set --subscription "<subscription id>"
-./infra/azure/setup.sh dev
-./infra/azure/setup.sh prod
+MSYS_NO_PATHCONV=1 GITHUB_REPO=<owner>/<repo> ./infra/azure/setup.sh
 ```
 
-The default region is West US 2 (`westus2`): on this subscription East US refuses new Postgres servers and East US 2 refuses the B1ms size (`SkuNotAvailable`). New subscriptions often get such per-region capacity limits; an Azure support request ("Service and subscription limits") can lift them. Override with e.g. `LOCATION=centralus ./infra/azure/setup.sh dev`, and use the same region for dev and prod. On Git Bash, prefix the command with `MSYS_NO_PATHCONV=1` so Azure resource IDs are not rewritten as Windows paths.
-Each run prints the GitHub variables for that environment. Rough cost per
-environment: Postgres B1ms ≈ $16/mo, ACR Basic ≈ $5/mo. The app scales to
-zero when idle, so it stays within the Container Apps free monthly grant; the
-first request after a quiet period takes a few seconds (cold start).
+- `GITHUB_REPO` must be the repo that deploys: Azure only trusts that repo.
+- `MSYS_NO_PATHCONV=1` is needed on Git Bash only. It stops Git Bash rewriting Azure resource IDs as Windows paths.
+- The script is idempotent: if it stops partway, fix the cause and run it again.
+- The default region is West US 2 (`westus2`). On the reference subscription, East US refused new Postgres servers, and East US 2 refused the B1ms size (`SkuNotAvailable`). New subscriptions often get per-region limits like these; an Azure support request ("Service and subscription limits") can lift them. Override with e.g. `LOCATION=centralus`.
+- A subscription allows only **2 Container Apps environments per region** by default. The shared layout needs one.
 
-**Upgrading an environment created before the single-container change:** re-run
-`setup.sh`, replace the GitHub variables `AZURE_BACKEND_APP` /
-`AZURE_FRONTEND_APP` with `AZURE_APP`, deploy, then delete the old apps:
-`az containerapp delete -g <rg> -n ca-bookkeeping-<env>-api --yes` (and `-web`).
+The run prints the GitHub variables for both environments at the end.
 
 ### 2. GitHub (repo admin)
 
@@ -126,13 +144,16 @@ first request after a quiet period takes a few seconds (cold start).
 
 ### 3. First login on each environment
 
-After the first successful deploy, create an admin user (the command is also
-printed by `setup.sh`):
+There's no sign-up page. After the first successful deploy, open a shell in
+the app: Azure Portal → Container Apps → `ca-bookkeeping-dev` (or `-prod`) →
+Monitoring → Console → `/bin/sh`. Or, from **PowerShell**,
+`az containerapp exec -g rg-bookkeeping -n ca-bookkeeping-dev`. Then run:
 
-```bash
-az containerapp exec -g rg-bookkeeping-dev -n ca-bookkeeping-dev --command \
-  "python scripts/create_user.py --email you@company.com --password '<strong>' --full-name 'Your Name' --role admin"
+```sh
+python scripts/create_user.py --email you@company.com --password '<strong>' --full-name 'Your Name' --role admin
 ```
+
+The same command with an existing email resets that user's password.
 
 ## Operations
 
