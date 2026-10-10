@@ -49,8 +49,11 @@ step() { printf '\n==> %s\n' "$*"; }
 exists() { "$@" >/dev/null 2>&1; }
 
 az extension add --name containerapp --upgrade --only-show-errors
-az provider register --namespace Microsoft.App --wait >/dev/null
-az provider register --namespace Microsoft.OperationalInsights --wait >/dev/null
+# A new subscription has none of these registered yet; registering is a no-op
+# when it already is. One per Azure service this script creates.
+for ns in Microsoft.App Microsoft.OperationalInsights Microsoft.KeyVault           Microsoft.ManagedIdentity Microsoft.ContainerRegistry Microsoft.DBforPostgreSQL; do
+  az provider register --namespace "$ns" --wait >/dev/null
+done
 
 step "Resource group $RG ($LOCATION)"
 az group create -n "$RG" -l "$LOCATION" -o none
