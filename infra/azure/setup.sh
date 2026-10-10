@@ -145,6 +145,12 @@ until [ "$PG_STATE" = "Ready" ]; do
   sleep 20
   PG_STATE="$(az postgres flexible-server show -n "$PG" -g "$RG" --query state -o tsv)"
 done
+# --public-access 0.0.0.0 normally adds this rule, but not when the create
+# command fails after the server exists (the read-back 404 above). Without it
+# nothing in Azure can connect and the app hangs on its first migration.
+retry az postgres flexible-server firewall-rule create --resource-group "$RG" --server-name "$PG" \
+  --name AllowAllAzureServicesAndResourcesWithinAzureIps \
+  --start-ip-address 0.0.0.0 --end-ip-address 0.0.0.0 -o none --only-show-errors
 retry az postgres flexible-server db create --resource-group "$RG" --server-name "$PG" --name "$PG_DB" -o none
 PG_HOST="$(az postgres flexible-server show -n "$PG" -g "$RG" --query fullyQualifiedDomainName -o tsv)"
 
