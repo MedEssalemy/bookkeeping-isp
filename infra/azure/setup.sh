@@ -24,7 +24,7 @@ fi
 
 LOCATION="${LOCATION:-westeurope}"
 PREFIX="${PREFIX:-bookkeeping}"
-GITHUB_REPO="${GITHUB_REPO:-AbdellahElBouazzaoui/bookkeeping-project}"
+GITHUB_REPO="${GITHUB_REPO:-MedEssalemy/bookkeeping-isp}"
 PG_SKU="${PG_SKU:-Standard_B1ms}"
 
 SUB_ID="$(az account show --query id -o tsv)"
