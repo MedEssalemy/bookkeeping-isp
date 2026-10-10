@@ -11,7 +11,7 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@primeuix/themes": "^2.0.3",
+    "@primeuix/themes": "^3.0.1",
     "@tanstack/vue-query": "^5.100.3",
     "@tiptap/extension-bullet-list": "3.22.4",
     "@tiptap/extension-ordered-list": "3.22.4",
