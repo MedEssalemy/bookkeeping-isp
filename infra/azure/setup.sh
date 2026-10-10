@@ -108,7 +108,8 @@ ensure_secret() {
 }
 ensure_secret pg-password
 ensure_secret jwt-secret-key
-PG_PASSWORD="$(az keyvault secret show --vault-name "$KV" -n pg-password --query value -o tsv)"
+# The role grant above can take a minute to reach every Key Vault node.
+PG_PASSWORD="$(retry az keyvault secret show --vault-name "$KV" -n pg-password --query value -o tsv 2>/dev/null)"
 
 step "Managed identity $IDENTITY"
 az identity create -n "$IDENTITY" -g "$RG" -l "$LOCATION" -o none
