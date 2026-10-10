@@ -22,7 +22,7 @@ async function listInvoices(params: InvoiceListParams): Promise<ListResponse> {
   return axios.get('/invoices', { params }).then((r) => r.data as ListResponse)
 }
 
-async function getInvoice(id: string): Promise<Invoice | null> {
+export async function getInvoice(id: string): Promise<Invoice | null> {
   if (useMocks) return mocks.mockGetInvoice(id)
   return axios.get(`/invoices/${id}`).then((r) => r.data as Invoice)
 }

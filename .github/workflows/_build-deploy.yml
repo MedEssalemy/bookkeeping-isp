@@ -1,0 +1,161 @@
+name: Build & deploy (reusable)
+
+# Builds the single app image (API + built Vue UI, root Dockerfile), pushes it
+# to GitHub Container Registry, and rolls it out to one Azure Container Apps
+# environment.
+#
+# Azure access uses OIDC (no stored credentials). Per GitHub *environment*
+# (dev / prod) set these Variables — none of them are secrets:
+#   AZURE_CLIENT_ID, AZURE_TENANT_ID, AZURE_SUBSCRIPTION_ID,
+#   AZURE_RESOURCE_GROUP, AZURE_ACR_NAME, AZURE_APP
+# The image is copied GHCR -> the environment's Azure Container Registry, which
+# the app pulls from with its managed identity (no registry password).
+# App secrets (DB password, JWT key) live in Azure Key Vault and are referenced
+# by the Container App directly — see infra/azure/README.md.
+# Until the variables exist the deploy step is skipped with a warning.
+
+on:
+  workflow_call:
+    inputs:
+      environment:
+        description: GitHub environment / target (dev or prod)
+        type: string
+        required: true
+      image_tag:
+        description: Immutable tag to deploy (sha-xxxxxxx or vX.Y.Z)
+        type: string
+        required: true
+      extra_tag:
+        description: Moving tag to also push (dev or prod)
+        type: string
+        required: true
+      promote_from:
+        description: >-
+          Existing tag (sha-xxxxxxx) of an image already tested on dev with the
+          same code. When it exists it is re-tagged instead of rebuilt, so prod
+          runs the exact bytes dev ran. Empty or missing = build from source.
+        type: string
+        default: ""
+    outputs:
+      deployed:
+        value: ${{ jobs.deploy.outputs.deployed }}
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      image: ${{ steps.names.outputs.image }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Image name (GHCR requires lowercase)
+        id: names
+        run: echo "image=ghcr.io/${GITHUB_REPOSITORY,,}" >> "$GITHUB_OUTPUT"
+
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Reuse the image tested on dev
+        id: promote
+        if: inputs.promote_from != ''
+        env:
+          IMAGE: ${{ steps.names.outputs.image }}
+        run: |
+          src="$IMAGE:${{ inputs.promote_from }}"
+          if docker buildx imagetools inspect "$src" >/dev/null 2>&1; then
+            docker buildx imagetools create \
+              -t "$IMAGE:${{ inputs.image_tag }}" -t "$IMAGE:${{ inputs.extra_tag }}" "$src"
+            echo "promoted=true" >> "$GITHUB_OUTPUT"
+            echo "Promoted $src -> ${{ inputs.image_tag }} (no rebuild)"
+          else
+            echo "::warning::$src not found in GHCR (e.g. a docs-only dev merge) — building from source instead."
+          fi
+
+      - name: App image
+        if: steps.promote.outputs.promoted != 'true'
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          build-args: APP_VERSION=${{ inputs.image_tag }}
+          tags: |
+            ${{ steps.names.outputs.image }}:${{ inputs.image_tag }}
+            ${{ steps.names.outputs.image }}:${{ inputs.extra_tag }}
+          labels: org.opencontainers.image.revision=${{ github.sha }}
+          cache-from: type=gha,scope=app
+          cache-to: type=gha,mode=max,scope=app
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: ${{ inputs.environment }}
+      url: ${{ steps.rollout.outputs.url }}
+    permissions:
+      contents: read
+      packages: read    # lets ACR import the image from GHCR
+      id-token: write   # OIDC login to Azure
+    outputs:
+      deployed: ${{ steps.check.outputs.configured }}
+    env:
+      RG: ${{ vars.AZURE_RESOURCE_GROUP }}
+      ACR: ${{ vars.AZURE_ACR_NAME }}
+      APP: ${{ vars.AZURE_APP }}
+    steps:
+      - name: Check Azure configuration
+        id: check
+        run: |
+          if [ -z "${{ vars.AZURE_CLIENT_ID }}" ] || [ -z "$RG" ] || [ -z "$ACR" ] || [ -z "$APP" ]; then
+            echo "::warning::Azure variables are not set for the '${{ inputs.environment }}' environment — the image was pushed but nothing was deployed. See infra/azure/README.md."
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Azure login (OIDC)
+        if: steps.check.outputs.configured == 'true'
+        uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Roll out the new image
+        id: rollout
+        if: steps.check.outputs.configured == 'true'
+        run: |
+          az extension add --name containerapp --upgrade --only-show-errors
+          tag="${{ inputs.image_tag }}"
+          az acr import --name "$ACR" --source "${{ needs.build.outputs.image }}:$tag" \
+            --image "bookkeeping:$tag" --username "${{ github.actor }}" \
+            --password "${{ secrets.GITHUB_TOKEN }}" --force --only-show-errors
+          # The new revision runs migrations on start (start.sh) before serving.
+          az containerapp update -g "$RG" -n "$APP" --image "$ACR.azurecr.io/bookkeeping:$tag" \
+            --set-env-vars "APP_VERSION=$tag" --only-show-errors -o none
+          fqdn="$(az containerapp show -g "$RG" -n "$APP" --query properties.configuration.ingress.fqdn -o tsv)"
+          echo "url=https://${fqdn}" >> "$GITHUB_OUTPUT"
+
+      - name: Smoke test
+        if: steps.check.outputs.configured == 'true'
+        run: |
+          url="${{ steps.rollout.outputs.url }}"
+          # The UI must load and a bad login must come back 401 — proves the
+          # static files, the API and the DB are all up. The first request may
+          # also wake the app from zero replicas.
+          for i in $(seq 1 30); do
+            ui=$(curl -s -o /dev/null -w '%{http_code}' "$url/" || true)
+            api=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$url/api/v1/auth/login" \
+                  -H 'Content-Type: application/json' -d '{"email":"smoke@test.invalid","password":"x"}' || true)
+            echo "attempt $i: ui=$ui api=$api"
+            if [ "$ui" = "200" ] && [ "$api" = "401" ]; then exit 0; fi
+            sleep 10
+          done
+          echo "::error::Deployment did not become healthy at $url"
+          exit 1

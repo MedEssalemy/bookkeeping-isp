@@ -8,12 +8,14 @@
       :active-class="tab.exact ? '' : 'is-active'"
       :exact-active-class="tab.exact ? 'is-active' : ''"
     >
+      <!-- eslint-disable-next-line vue/no-v-html -- static SVG icon from code, not user content -->
       <span class="bottom-nav__icon" v-html="tab.icon" />
       <span class="bottom-nav__label">{{ tab.label }}</span>
     </RouterLink>
 
     <!-- More button — opens sidebar drawer -->
     <button class="bottom-nav__tab bottom-nav__tab--more" @click="emit('open-more')">
+      <!-- eslint-disable-next-line vue/no-v-html -- static SVG icon from code, not user content -->
       <span class="bottom-nav__icon" v-html="moreIcon" />
       <span class="bottom-nav__label">More</span>
     </button>

@@ -32,6 +32,7 @@ services:
       - ./backend:/app
     command: >
       sh -c "alembic upgrade head &&
+             python scripts/seed.py &&
              uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"
 
   frontend:
@@ -41,12 +42,8 @@ services:
       # Overrides vite.config.ts's localhost default: inside Docker, "backend"
       # is the other container's hostname on the compose network, not localhost.
       VITE_API_PROXY_TARGET: http://backend:8000
-      # Stays true for now: most resource endpoints the frontend calls
-      # (e.g. /clients/lookup, /pos/next-number) don't exist on the backend
-      # yet — it currently exposes a simpler generic CRUD API. Auth is the
-      # one path already wired end-to-end (see README). Flip to "false"
-      # once the endpoint contracts are aligned.
-      VITE_USE_MOCKS: "true"
+      # Real API + Postgres. Set to "true" to run the UI on in-memory mocks.
+      VITE_USE_MOCKS: "false"
     ports:
       - "5173:5173"
     depends_on:

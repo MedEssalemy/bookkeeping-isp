@@ -1,74 +1,51 @@
+"""
+Clients (one row per contact person / facility) — matches frontend/src/api/clients.ts.
+"""
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
 from app.database import get_db
+from app.models import Client
 from app.security import get_current_user, require_write_access
-from app import crud
-from app.schemas import schemas
-from app.routers.factory import build_crud_router
+from app.services import parties
+from app.services.parties import ContactInput, ImportPlan
 
-router = build_crud_router(
-    prefix="/clients",
-    tags=["clients"],
-    crud_obj=crud.client,
-    read_schema=schemas.ClientRead,
-    create_schema=schemas.ClientCreate,
-    update_schema=schemas.ClientUpdate,
-)
-
-# ---- CLIENT }o--o{ PROPOSAL : "receives" ----
-@router.get("/{client_id}/proposals", response_model=list[schemas.ProposalRead])
-def list_client_proposals(client_id: int, db: Session = Depends(get_db), _user=Depends(get_current_user)):
-    return crud.client.get(db, client_id).proposals
+router = APIRouter(prefix="/clients", tags=["clients"])
 
 
-@router.post("/{client_id}/proposals/{proposal_id}", status_code=204)
-def link_client_proposal(client_id: int, proposal_id: int, db: Session = Depends(get_db), _user=Depends(require_write_access)):
-    c = crud.client.get(db, client_id)
-    p = crud.proposal.get(db, proposal_id)
-    if p not in c.proposals:
-        c.proposals.append(p)
-        db.commit()
-    return None
+@router.get("/names")
+def search_names(q: str = "", db: Session = Depends(get_db), _user=Depends(get_current_user)):
+    return parties.search_names(db, Client, q)
 
 
-@router.delete("/{client_id}/proposals/{proposal_id}", status_code=204)
-def unlink_client_proposal(client_id: int, proposal_id: int, db: Session = Depends(get_db), _user=Depends(require_write_access)):
-    c = crud.client.get(db, client_id)
-    p = crud.proposal.get(db, proposal_id)
-    if p in c.proposals:
-        c.proposals.remove(p)
-        db.commit()
-    return None
+@router.get("/lookup")
+def lookup(name: str, db: Session = Depends(get_db), _user=Depends(get_current_user)):
+    return parties.lookup(db, Client, name)
 
 
-# ---- CLIENT }o--o{ INVOICE : "receives" ----
-@router.get("/{client_id}/invoices", response_model=list[schemas.InvoiceRead])
-def list_client_invoices(client_id: int, db: Session = Depends(get_db), _user=Depends(get_current_user)):
-    return crud.client.get(db, client_id).invoices
+@router.get("/contacts/all")
+def list_all_contacts(db: Session = Depends(get_db), _user=Depends(get_current_user)):
+    return parties.list_all(db, Client)
 
 
-@router.post("/{client_id}/invoices/{invoice_id}", status_code=204)
-def link_client_invoice(client_id: int, invoice_id: int, db: Session = Depends(get_db), _user=Depends(require_write_access)):
-    c = crud.client.get(db, client_id)
-    i = crud.invoice.get(db, invoice_id)
-    if i not in c.invoices:
-        c.invoices.append(i)
-        db.commit()
-    return None
+@router.post("/contacts", status_code=201)
+def add_contact(data: ContactInput, db: Session = Depends(get_db), _user=Depends(require_write_access)):
+    return parties.create(db, Client, data)
 
 
-@router.delete("/{client_id}/invoices/{invoice_id}", status_code=204)
-def unlink_client_invoice(client_id: int, invoice_id: int, db: Session = Depends(get_db), _user=Depends(require_write_access)):
-    c = crud.client.get(db, client_id)
-    i = crud.invoice.get(db, invoice_id)
-    if i in c.invoices:
-        c.invoices.remove(i)
-        db.commit()
-    return None
+@router.put("/contacts/{contact_id}")
+def update_contact(contact_id: str, data: ContactInput, db: Session = Depends(get_db), _user=Depends(require_write_access)):
+    return parties.update(db, Client, contact_id, data, "Contact")
 
 
-# ---- CLIENT ||--o{ PURCHASE_ORDER : "sends" (direct FK, read-only convenience) ----
-@router.get("/{client_id}/purchase-orders", response_model=list[schemas.PurchaseOrderRead])
-def list_client_purchase_orders(client_id: int, db: Session = Depends(get_db), _user=Depends(get_current_user)):
-    return crud.client.get(db, client_id).purchase_orders
+@router.delete("/contacts/{contact_id}")
+def delete_contact(contact_id: str, db: Session = Depends(get_db), _user=Depends(require_write_access)):
+    row = parties.get_or_404(db, Client, contact_id, "Contact")
+    db.delete(row)
+    db.commit()
+    return {"id": contact_id}
+
+
+@router.post("/import")
+def commit_import(plan: ImportPlan, db: Session = Depends(get_db), _user=Depends(require_write_access)):
+    return parties.commit_import(db, Client, plan)

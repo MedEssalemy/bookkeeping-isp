@@ -289,6 +289,10 @@ function buildFromPayload(id: string, payload: POPayload, existing?: PurchaseOrd
 }
 
 export function mockCreatePO(payload: POPayload): Promise<PurchaseOrder> {
+  if (payload.number && payload.replace_existing) {
+    const dup = POS.findIndex((p) => p.number === payload.number && p.direction === payload.direction)
+    if (dup !== -1) POS.splice(dup, 1)
+  }
   if (payload.number && POS.some((p) => p.number === payload.number && p.direction === payload.direction)) {
     return Promise.reject({ status: 409, message: 'PO number already exists' })
   }

@@ -577,10 +577,10 @@ async function handleSave() {
   await doSave()
 }
 
-async function doSave() {
+async function doSave(replace = false) {
   saveLoading.value = true
   try {
-    const payload = buildPayload()
+    const payload = { ...buildPayload(), ...(replace ? { replace_existing: true } : {}) }
     const saved = isEdit
       ? await updatePO({ id: poId.value, payload })
       : await createPO(payload)
@@ -596,7 +596,7 @@ async function doSave() {
 
 function onDuplicateReplace() {
   showDuplicateConfirm.value = false
-  doSave()
+  doSave(true)
 }
 
 function handleCancel() {

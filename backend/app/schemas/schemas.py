@@ -99,8 +99,9 @@ class SubcontractorRead(SubcontractorBase):
 
 # ---------- Proposal ----------
 class ProposalBase(BaseModel):
-    reference: str
-    status: str = "draft"
+    number: str
+    reference: Optional[str] = None
+    status: str = "Draft"
 
 
 class ProposalCreate(ProposalBase):
@@ -121,8 +122,8 @@ class ProposalRead(ProposalBase):
 class PurchaseOrderBase(BaseModel):
     po_number: str
     order_date: date
-    status: str = "open"
-    client_id: int
+    status: str = "Open"
+    client_id: Optional[int] = None
     proposal_id: Optional[int] = None
 
 
