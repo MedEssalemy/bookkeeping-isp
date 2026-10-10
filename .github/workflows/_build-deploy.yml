@@ -152,7 +152,7 @@ jobs:
           for i in $(seq 1 30); do
             ui=$(curl -s -o /dev/null -w '%{http_code}' "$url/" || true)
             api=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$url/api/v1/auth/login" \
-                  -H 'Content-Type: application/json' -d '{"email":"smoke@test.invalid","password":"x"}' || true)
+                  -H 'Content-Type: application/json' -d '{"email":"smoke@example.com","password":"x"}' || true)
             echo "attempt $i: ui=$ui api=$api"
             if [ "$ui" = "200" ] && [ "$api" = "401" ]; then exit 0; fi
             sleep 10
