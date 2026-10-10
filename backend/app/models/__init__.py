@@ -10,6 +10,9 @@ from app.models.invoice import Invoice
 from app.models.job import Job
 from app.models.reference import ReferenceDoc
 from app.models.user import User, UserRole
+from app.models.config_list import ConfigListItem
+from app.models.tax_rate import TaxRate
+from app.models.attachment import Attachment
 from app.models.associations import (
     client_proposals,
     client_invoices,
@@ -33,6 +36,9 @@ __all__ = [
     "ReferenceDoc",
     "User",
     "UserRole",
+    "ConfigListItem",
+    "TaxRate",
+    "Attachment",
     "client_proposals",
     "client_invoices",
     "subcontractor_proposals",

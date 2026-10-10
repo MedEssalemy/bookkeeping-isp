@@ -394,14 +394,13 @@ async function handleImportFile(e: Event) {
       )
       return
     }
-    importPlan.value = planImport(parsed.rows)
+    importPlan.value = planImport(parsed.rows, data.value ?? [])
     importModalOpen.value = true
   } catch (err) {
     showBanner(
       `Failed to read "${file.name}". Is it a valid CSV or Excel file?`,
       'error',
     )
-    // eslint-disable-next-line no-console
     console.error('Client import parse error', err)
   }
 }

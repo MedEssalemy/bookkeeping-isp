@@ -631,10 +631,10 @@ async function handleSave() {
   await doSave()
 }
 
-async function doSave() {
+async function doSave(replace = false) {
   saveLoading.value = true
   try {
-    const payload = form.buildPayload()
+    const payload = { ...form.buildPayload(), ...(replace ? { replace_existing: true } : {}) }
     let savedId: string
     let savedNumber: string
     if (isEdit) {
@@ -668,9 +668,9 @@ async function doSave() {
 
 function onDuplicateReplace() {
   showDuplicateConfirm.value = false
-  // In a real backend the server would PATCH the existing record by number;
-  // for the UI shell we just re-issue the save and the backend handles it.
-  doSave()
+  // Re-issue the save, telling the server to delete-and-replace the existing
+  // document with this number (legacy duplicate-ID flow).
+  doSave(true)
 }
 
 function onAcceptedCreatePO() {

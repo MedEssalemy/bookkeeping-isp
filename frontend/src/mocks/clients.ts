@@ -172,8 +172,17 @@ function isShallowEqual(a: ClientContact, b: ClientContact): boolean {
  * the store — the user confirms before commit.
  */
 export function planImport(rows: AddContactInput[]): ImportPlan {
-  const byKey = new Map<string, StoredContact>()
-  for (const c of contacts) byKey.set(matchKey(c), c)
+  return planImportAgainst(rows, contacts.map(toRow))
+}
+
+/**
+ * Same classification against an explicit set of existing rows — used in real
+ * API mode (rows loaded from the backend) and for contractors, which share the
+ * contact shape and normalization.
+ */
+export function planImportAgainst(rows: AddContactInput[], existingRows: ContactRow[]): ImportPlan {
+  const byKey = new Map<string, ContactRow>()
+  for (const c of existingRows) byKey.set(matchKey(c), c)
   let newCount = 0
   let updateCount = 0
   let unchangedCount = 0
@@ -193,7 +202,7 @@ export function planImport(rows: AddContactInput[]): ImportPlan {
     updateCount += 1
     items.push({
       action: 'update',
-      existingId: existing._id,
+      existingId: existing.id,
       row: normalized,
       existing: { ...existing },
     })

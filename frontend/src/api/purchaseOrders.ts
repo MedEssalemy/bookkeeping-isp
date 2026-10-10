@@ -22,7 +22,7 @@ async function listPOs(params: POListParams): Promise<ListResponse> {
   return axios.get('/pos', { params }).then((r) => r.data as ListResponse)
 }
 
-async function getPO(id: string): Promise<PurchaseOrder | null> {
+export async function getPO(id: string): Promise<PurchaseOrder | null> {
   if (useMocks) return mocks.mockGetPO(id)
   return axios.get(`/pos/${id}`).then((r) => r.data as PurchaseOrder)
 }

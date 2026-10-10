@@ -9,16 +9,20 @@ import {
   mockUpdateContractor,
   mockDeleteContractor,
   mockCommitContractorImport,
-  planContractorImport,
+  planContractorImport as mockPlanContractorImport,
   type ContractorRow,
   type AddContractorInput,
 } from '../mocks/contractors'
-import type { ImportPlan } from '../mocks/clients'
+import { planImportAgainst, type ImportPlan } from '../mocks/clients'
 import { api as axios } from './axios'
 import type { Contractor } from '../types/common'
 
-export { planContractorImport }
 export type { ContractorRow, AddContractorInput }
+
+/** Classify parsed import rows against `existing` (contractors loaded from the server). */
+export function planContractorImport(rows: AddContractorInput[], existing: ContractorRow[]): ImportPlan {
+  return useMocks ? mockPlanContractorImport(rows) : planImportAgainst(rows, existing)
+}
 
 // ── Person name search (contractor-side counterparty picker) ─────────────────
 

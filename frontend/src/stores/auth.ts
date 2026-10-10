@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import type { AuthUser, LoginCredentials, UserRole } from '../types/auth'
+import { loginRequest } from '../api/auth'
 
 // ─── Auth Store ───────────────────────────────────────────────────────────────
 // Single source of truth for authentication state.
@@ -39,33 +40,11 @@ export const useAuthStore = defineStore('auth', () => {
    * Throws on failure so the LoginView can catch and display the error.
    */
 
-  /* Temp login UI only */
-  async function login(credentials: LoginCredentials): Promise<void> {
-    // TEMP: mock login — remove when backend is ready
-    await new Promise((resolve) => setTimeout(resolve, 800)) // fake loading delay
-
-    if (
-      credentials.email === 'admin@isp.com' &&
-      credentials.password === 'admin123'
-    ) {
-      token.value = 'mock-token'
-      user.value = {
-        id: 'u1',
-        email: 'admin@isp.com',
-        full_name: 'Abe Ahalla',
-        role: 'admin',
-      }
-    } else {
-      throw new Error('Invalid credentials')
-    }
-  }
-  /* UNCOMMENT WHEN API IS READY  
   async function login(credentials: LoginCredentials): Promise<void> {
     const data = await loginRequest(credentials)
     token.value = data.access_token
     user.value = data.user
   }
-*/
 
   /**
    * Clears all auth state.

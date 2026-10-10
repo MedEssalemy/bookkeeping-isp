@@ -9,7 +9,8 @@ import {
   mockUpdateContact,
   mockDeleteContact,
   mockCommitImport,
-  planImport,
+  planImport as mockPlanImport,
+  planImportAgainst,
   type AddContactInput,
   type ContactRow,
   type ImportPlan,
@@ -17,8 +18,13 @@ import {
 import { api as axios } from './axios'
 import type { ClientContact } from '../types/proposal'
 
-export { planImport }
 export type { ContactRow, AddContactInput, ImportPlan }
+
+/** Classify parsed import rows as create/update/unchanged against `existing`
+ *  (the contacts currently loaded from the server). */
+export function planImport(rows: AddContactInput[], existing: ContactRow[]): ImportPlan {
+  return useMocks ? mockPlanImport(rows) : planImportAgainst(rows, existing)
+}
 
 // ── Person name search (proposal Contact picker) ─────────────────────────────
 

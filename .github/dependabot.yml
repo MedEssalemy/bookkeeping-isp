@@ -1,0 +1,37 @@
+# Weekly dependency update PRs into dev. The "chore(deps)" prefix becomes the
+# PR title, which keeps CI's conventional-title check green (patch bump).
+# Minor/patch updates are grouped into one PR per ecosystem; majors stay
+# separate so each can be reviewed on its own.
+version: 2
+
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    target-branch: dev
+    schedule: { interval: weekly }
+    commit-message: { prefix: chore, include: scope }
+    groups:
+      actions: { update-types: [minor, patch] }
+
+  - package-ecosystem: pip
+    directory: /backend
+    target-branch: dev
+    schedule: { interval: weekly }
+    commit-message: { prefix: chore, include: scope }
+    groups:
+      python: { update-types: [minor, patch] }
+
+  - package-ecosystem: npm
+    directory: /frontend
+    target-branch: dev
+    schedule: { interval: weekly }
+    commit-message: { prefix: chore, include: scope }
+    groups:
+      npm: { update-types: [minor, patch] }
+
+  # Base images (node, python) of the production Dockerfile.
+  - package-ecosystem: docker
+    directory: /
+    target-branch: dev
+    schedule: { interval: weekly }
+    commit-message: { prefix: chore, include: scope }

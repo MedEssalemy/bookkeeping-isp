@@ -1,0 +1,112 @@
+name: CI
+
+# Runs on every PR into dev/prod. Make these jobs required checks in the
+# dev branch protection rule.
+on:
+  pull_request:
+    branches: [dev, prod]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  pr-title:
+    name: PR title (conventional)
+    if: github.event_name == 'pull_request' && github.base_ref == 'dev'
+    runs-on: ubuntu-latest
+    steps:
+      # The PR title becomes the squash-merge commit message, which drives the
+      # automatic version bump (feat = minor, fix/chore/... = patch, ! = major).
+      - name: Check title
+        env:
+          TITLE: ${{ github.event.pull_request.title }}
+        run: |
+          if ! grep -qE '^(feat|fix|perf|refactor|docs|test|build|ci|chore|style|revert)(\([a-z0-9._/-]+\))?!?: .+' <<<"$TITLE"; then
+            echo "::error::PR title must follow Conventional Commits, e.g. 'feat: add invoice export' or 'fix(api): handle empty dates'. Got: $TITLE"
+            exit 1
+          fi
+
+  backend:
+    name: Backend lint & tests
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: app_user
+          POSTGRES_PASSWORD: app_password
+          POSTGRES_DB: erd_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U app_user -d erd_test"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      POSTGRES_USER: app_user
+      POSTGRES_PASSWORD: app_password
+      POSTGRES_DB: erd_test
+      POSTGRES_HOST: localhost
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: backend/requirements*.txt
+      - run: pip install -r requirements-dev.txt
+      - run: ruff check .
+      - name: Migrations apply cleanly and match the models
+        run: alembic upgrade head && alembic check
+      - run: pytest -q
+
+  frontend:
+    name: Frontend lint, tests & build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci --legacy-peer-deps
+      - run: npm run lint
+      - run: npm test
+      - run: npm run build
+
+  images:
+    name: Docker image build & scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - name: App image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: false
+          load: true
+          tags: bookkeeping:ci
+          cache-from: type=gha,scope=app
+          cache-to: type=gha,mode=max,scope=app
+      # Fails on HIGH/CRITICAL vulnerabilities that already have a fix (bump the
+      # base image or the package; Dependabot usually opens that PR).
+      # Pinned to a commit, not a tag: this action's tags were hijacked in
+      # March 2026 (CVE-2026-33634); v0.35.0 and Trivy v0.69.3 are known-good.
+      - name: Vulnerability scan
+        uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1 # v0.35.0
+        with:
+          image-ref: bookkeeping:ci
+          version: v0.69.3
+          severity: CRITICAL,HIGH
+          ignore-unfixed: true
+          exit-code: "1"

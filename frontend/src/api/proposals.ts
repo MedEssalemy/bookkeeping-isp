@@ -23,7 +23,7 @@ async function listProposals(params: ProposalListParams): Promise<ListResponse> 
   return axios.get('/proposals', { params }).then((r) => r.data as ListResponse)
 }
 
-async function getProposal(id: string): Promise<Proposal | null> {
+export async function getProposal(id: string): Promise<Proposal | null> {
   if (useMocks) return mocks.mockGetProposal(id)
   return axios.get(`/proposals/${id}`).then((r) => r.data as Proposal)
 }

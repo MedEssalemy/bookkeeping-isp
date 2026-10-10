@@ -320,11 +320,10 @@ async function handleImportFile(e: Event) {
       showBanner(`Couldn't read any rows from "${file.name}". Check the sheet has the expected columns.`, 'error')
       return
     }
-    importPlan.value = planContractorImport(parsed.rows)
+    importPlan.value = planContractorImport(parsed.rows, data.value ?? [])
     importModalOpen.value = true
   } catch (err) {
     showBanner(`Failed to read "${file.name}". Is it a valid CSV or Excel file?`, 'error')
-    // eslint-disable-next-line no-console
     console.error('Contractor import parse error', err)
   }
 }

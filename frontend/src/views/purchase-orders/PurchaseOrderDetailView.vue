@@ -100,7 +100,7 @@
       <!-- Notes -->
       <div v-if="hasRichContent(po.notes)" class="po-detail__section card card--padded">
         <h2 class="po-detail__section-title">Notes</h2>
-        <div class="po-detail__rich-content proposal-rich-content" v-html="po.notes" />
+        <RichTextView class="po-detail__rich-content" :html="po.notes" />
       </div>
     </template>
 
@@ -143,6 +143,7 @@
 </template>
 
 <script setup lang="ts">
+import RichTextView from '../../components/base/RichTextView.vue'
 import { ref, computed, h } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useAuthStore } from '../../stores/auth'

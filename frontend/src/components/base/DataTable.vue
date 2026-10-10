@@ -5,7 +5,7 @@
       :rowHover="!loading"
       v-bind="$attrs"
     >
-      <template v-if="loading" v-for="col in skeletonCols" :key="col" #[`body_${col}`]>
+      <template v-for="col in (loading ? skeletonCols : [])" :key="col" #[`body_${col}`]>
         <div class="skeleton skeleton--text" />
       </template>
 

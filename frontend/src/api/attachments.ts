@@ -55,9 +55,22 @@ export function useDeleteAttachment(module: AttachmentModule) {
   })
 }
 
-/** Trigger a download of an attachment (mock: object URL; backend: signed URL). */
-export function downloadAttachment(module: AttachmentModule, recordId: string, att: Attachment): void {
-  const url = useMocks ? mockGetAttachmentUrl(module, recordId, att.id) : `/api/v1/attachments/${att.id}/download`
+/**
+ * Trigger a download of an attachment. Mock: session object URL. Backend: the
+ * file is fetched through axios (a plain link wouldn't carry the Bearer token).
+ */
+export async function downloadAttachment(module: AttachmentModule, recordId: string, att: Attachment): Promise<void> {
+  let url: string
+  let revoke = false
+  if (useMocks) {
+    url = mockGetAttachmentUrl(module, recordId, att.id)
+  } else {
+    const blob = await axios
+      .get(`/attachments/${att.id}/download`, { responseType: 'blob' })
+      .then((r) => r.data as Blob)
+    url = URL.createObjectURL(blob)
+    revoke = true
+  }
   if (!url) return
   const a = document.createElement('a')
   a.href = url
@@ -65,4 +78,5 @@ export function downloadAttachment(module: AttachmentModule, recordId: string, a
   document.body.appendChild(a)
   a.click()
   document.body.removeChild(a)
+  if (revoke) setTimeout(() => URL.revokeObjectURL(url), 1000)
 }

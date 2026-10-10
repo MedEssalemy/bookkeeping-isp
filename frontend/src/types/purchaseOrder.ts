@@ -125,4 +125,7 @@ export interface POPayload {
   notes?: string
   linked_client_po_id?: string
   linked_owner_invoice_id?: string
+
+  /** Confirmed delete-and-replace of an existing document with the same number. */
+  replace_existing?: boolean
 }

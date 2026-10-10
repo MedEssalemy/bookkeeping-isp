@@ -95,6 +95,7 @@ export function mockListAllContractors(): Promise<ContractorRow[]> {
 // Contractors share the ClientContact shape, so we reuse the clients' input and
 // import-plan types verbatim rather than duplicating them.
 import type { AddContactInput, ImportPlan } from './clients'
+import { planImportAgainst } from './clients'
 import { mockListPOs } from './purchaseOrders'
 import { mockListInvoices } from './invoices'
 import { mockListProposals } from './proposals'
@@ -172,37 +173,8 @@ export async function mockDeleteContractor(id: string): Promise<{ id: string }> 
 
 // ── Import (merge by name + business + facility) ───────────────────────────────
 
-function matchKey(c: { name?: string; business_name?: string; facility?: string }): string {
-  return [c.name, c.business_name, c.facility].map((v) => (v ?? '').trim().toLowerCase()).join('|')
-}
-function isShallowEqual(a: Contractor, b: Contractor): boolean {
-  const keys: (keyof Contractor)[] = [
-    'name', 'address', 'title', 'business_name', 'department', 'phone',
-    'email', 'city', 'county', 'state', 'zip', 'facility',
-  ]
-  return keys.every((k) => (a[k] ?? '') === (b[k] ?? ''))
-}
-
 export function planContractorImport(rows: AddContractorInput[]): ImportPlan {
-  const byKey = new Map<string, StoredContractor>()
-  for (const c of contractors) byKey.set(matchKey(c), c)
-  let newCount = 0
-  let updateCount = 0
-  let unchangedCount = 0
-  const items: ImportPlan['items'] = []
-  for (const r of rows) {
-    const normalized = normalizeInput(r)
-    const existing = byKey.get(matchKey(normalized))
-    if (!existing) {
-      newCount += 1
-      items.push({ action: 'create', row: normalized })
-      continue
-    }
-    if (isShallowEqual(existing, normalized)) { unchangedCount += 1; continue }
-    updateCount += 1
-    items.push({ action: 'update', existingId: existing._id, row: normalized, existing: { ...existing } })
-  }
-  return { items, newCount, updateCount, unchangedCount }
+  return planImportAgainst(rows, contractors.map(toRow))
 }
 
 export function mockCommitContractorImport(plan: ImportPlan): Promise<ImportPlan> {
