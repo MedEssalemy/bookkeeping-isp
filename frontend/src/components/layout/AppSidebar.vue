@@ -33,6 +33,7 @@
           @click="emit('navigate')"
         >
           <span class="sidebar__nav-item-inner">
+            <!-- eslint-disable-next-line vue/no-v-html -- static SVG icon from code, not user content -->
             <span class="nav-icon" v-html="item.icon" />
             <span class="nav-label">{{ item.label }}</span>
           </span>
@@ -64,6 +65,7 @@
       <!-- Popup menu -->
       <Transition name="menu">
         <div v-if="menuOpen" class="sidebar__menu">
+          <div v-if="appVersion" class="sidebar__menu-version">Version {{ appVersion }}</div>
           <div class="sidebar__menu-item sidebar__menu-item--danger" @click="handleSignOut">
             <!-- Logout icon -->
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -94,6 +96,8 @@ const auth = useAuthStore()
 const router = useRouter()
 
 const menuOpen = ref(false)
+// Deployed release (vX.Y.Z on prod, sha-xxxxxxx on dev), from the API's /health.
+const appVersion = ref('')
 const footerRef = ref<HTMLElement | null>(null)
 
 function handleClickOutside(e: MouseEvent) {
@@ -111,6 +115,10 @@ function updateShrunk(e: MediaQueryListEvent | MediaQueryList) {
 }
 
 onMounted(() => {
+  fetch('/health')
+    .then((r) => (r.ok ? r.json() : null))
+    .then((h) => { appVersion.value = h?.version ?? '' })
+    .catch(() => {})
   document.addEventListener('mousedown', handleClickOutside)
   railQuery = window.matchMedia('(max-width: 899px)')
   updateShrunk(railQuery)
@@ -459,6 +467,12 @@ const visibleNavGroups = computed<NavGroup[]>(() =>
 
 .sidebar__chevron.is-open {
   transform: rotate(180deg);
+}
+
+.sidebar__menu-version {
+  padding: 6px 10px 4px;
+  font-size: 11px;
+  color: #64748B;
 }
 
 /* Popup menu — floats above the footer */

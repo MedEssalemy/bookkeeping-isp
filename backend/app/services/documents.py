@@ -49,7 +49,7 @@ def parse_date(v: Any) -> date | None:
     try:
         return date.fromisoformat(str(v)[:10])
     except ValueError:
-        raise HTTPException(status_code=422, detail={"message": f"Invalid date: {v}"})
+        raise HTTPException(status_code=422, detail={"message": f"Invalid date: {v}"}) from None
 
 
 def require_date(v: Any) -> date:

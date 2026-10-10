@@ -76,6 +76,20 @@ def test_proposal_lifecycle(client):
     assert client.delete(f"/proposals/{p2['id']}").status_code == 204
 
 
+def test_rich_text_sanitized_on_save(client):
+    number = client.get("/proposals/next-number", params={"type": "standard"}).json()["number"]
+    p = client.post("/proposals", json={
+        "number": number, "type": "Standard", "direction": "issued", "status": "Draft", "date": "2026-10-01",
+        "client_name": "CI Client", "taxable": False, "tax_rate": 0, "line_items": [],
+        "notes": '<p onclick="steal()">Hi <img src=x onerror="steal()"><script>steal()</script></p>',
+        "services_provided": '<ul data-marker="square"><li><a href="javascript:steal()">x</a></li></ul>',
+    }).json()
+    saved = client.get(f"/proposals/{p['id']}").json()
+    assert saved["notes"] == "<p>Hi </p>"
+    assert saved["services_provided"] == '<ul data-marker="square"><li><a rel="noopener noreferrer">x</a></li></ul>'
+    assert client.delete(f"/proposals/{p['id']}").status_code == 204
+
+
 def test_mp_proposal_autonumber(client):
     r = client.post("/proposals", json={
         "number": "", "type": "MP", "direction": "issued", "status": "Draft", "date": "2026-10-02",

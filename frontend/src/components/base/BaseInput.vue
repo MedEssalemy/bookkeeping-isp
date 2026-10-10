@@ -22,7 +22,7 @@
 <script setup lang="ts">
 import { useId } from 'vue'
 
-const props = withDefaults(defineProps<{
+withDefaults(defineProps<{
   modelValue?: string | number | null
   label?: string
   placeholder?: string

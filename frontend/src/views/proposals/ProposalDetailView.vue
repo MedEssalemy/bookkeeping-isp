@@ -137,13 +137,13 @@
       <!-- Notes -->
       <div v-if="hasRichContent(proposal.notes)" class="proposal-detail__section card card--padded">
         <h2 class="proposal-detail__section-title">Notes</h2>
-        <div class="proposal-detail__rich-content proposal-rich-content" v-html="proposal.notes" />
+        <RichTextView class="proposal-detail__rich-content" :html="proposal.notes" />
       </div>
 
       <!-- Services Provided (MP only) -->
       <div v-if="proposal.type === 'MP' && hasRichContent(proposal.services_provided)" class="proposal-detail__section card card--padded">
         <h2 class="proposal-detail__section-title">Services Provided</h2>
-        <div class="proposal-detail__rich-content proposal-rich-content" v-html="proposal.services_provided" />
+        <RichTextView class="proposal-detail__rich-content" :html="proposal.services_provided" />
       </div>
 
     </template>
@@ -165,6 +165,7 @@
 </template>
 
 <script setup lang="ts">
+import RichTextView from '../../components/base/RichTextView.vue'
 import { ref, computed, h } from 'vue'
 import { useRouter, useRoute, type RouteLocationRaw } from 'vue-router'
 import { useAuthStore } from '../../stores/auth'

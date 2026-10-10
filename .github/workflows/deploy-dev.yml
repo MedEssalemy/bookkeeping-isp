@@ -5,6 +5,11 @@ name: Deploy dev
 on:
   push:
     branches: [dev]
+    # Docs-only merges change nothing in the image: skip the deploy. The release
+    # PR catches up on the next code change (or run this workflow by hand).
+    paths-ignore:
+      - "docs/**"
+      - "**/*.md"
   workflow_dispatch:
 
 concurrency:
@@ -59,7 +64,7 @@ jobs:
             if [ "${{ needs.deploy.outputs.deployed }}" = "true" ]; then
               echo "Currently on dev as image tag \`${{ needs.meta.outputs.tag }}\`."
             else
-              echo "Images built as \`${{ needs.meta.outputs.tag }}\` (dev deploy skipped: Azure not configured yet)."
+              echo "Image built as \`${{ needs.meta.outputs.tag }}\` (dev deploy skipped: Azure not configured yet)."
             fi
             echo
             echo "### Changes since the last release"

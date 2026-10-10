@@ -2,7 +2,7 @@ import axios, { type AxiosError } from 'axios'
 
 // ─── Axios Instance ───────────────────────────────────────────────────────────
 // All API calls go through this instance.
-// Base URL proxied by Vite in dev → Nginx in production.
+// Base URL proxied by Vite in dev; same origin as FastAPI in production.
 
 export const api = axios.create({
   baseURL: '/api/v1',

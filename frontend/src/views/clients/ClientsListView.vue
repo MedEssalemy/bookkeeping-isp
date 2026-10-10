@@ -401,7 +401,6 @@ async function handleImportFile(e: Event) {
       `Failed to read "${file.name}". Is it a valid CSV or Excel file?`,
       'error',
     )
-    // eslint-disable-next-line no-console
     console.error('Client import parse error', err)
   }
 }

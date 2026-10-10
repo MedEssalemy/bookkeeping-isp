@@ -24,6 +24,11 @@ class Settings(BaseSettings):
     jwt_algorithm: str = "HS256"
     jwt_expire_minutes: int = 60 * 8  # 8 hours
 
+    # Production image only: folder holding the built Vue app, served by FastAPI.
+    static_dir: str | None = None
+    # Baked into the image at build time; the deploy overrides it with the release tag.
+    app_version: str = "dev"
+
     @property
     def database_url(self) -> str:
         return (

@@ -18,6 +18,7 @@ jobs:
       pull-requests: read
     outputs:
       version: ${{ steps.v.outputs.version }}
+      promote_from: ${{ steps.v.outputs.promote_from }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -28,9 +29,10 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          pr=$(gh api "repos/${GITHUB_REPOSITORY}/commits/${GITHUB_SHA}/pulls" --jq '.[0] // {}' || echo '{}')
           # Prefer the version from the merged release PR title ("release: vX.Y.Z");
           # fall back to computing it (e.g. for a direct push / hotfix).
-          title=$(gh api "repos/${GITHUB_REPOSITORY}/commits/${GITHUB_SHA}/pulls" --jq '.[0].title // ""' || true)
+          title=$(jq -r '.title // ""' <<<"$pr")
           version=$(grep -oE 'v[0-9]+\.[0-9]+\.[0-9]+' <<<"$title" | head -n1 || true)
           [ -n "$version" ] || version=$(bash .github/scripts/next-version.sh HEAD)
           if git rev-parse -q --verify "refs/tags/$version" >/dev/null; then
@@ -39,6 +41,18 @@ jobs:
           fi
           echo "version=$version" >> "$GITHUB_OUTPUT"
           echo "Releasing $version"
+
+          # Build once, promote: if prod's code is byte-identical to the dev
+          # commit the release PR came from, deploy dev's image for that commit.
+          # A hotfix on prod (or anything else that makes the trees differ) builds.
+          head=$(jq -r '.head.sha // ""' <<<"$pr")
+          if [ -n "$head" ] && git cat-file -e "$head^{commit}" 2>/dev/null \
+             && [ "$(git rev-parse "$head^{tree}")" = "$(git rev-parse "HEAD^{tree}")" ]; then
+            echo "promote_from=sha-${head::7}" >> "$GITHUB_OUTPUT"
+            echo "Same code as dev commit ${head::7}: promoting its image"
+          else
+            echo "Code differs from the release PR's dev commit: building from source"
+          fi
 
   deploy:
     needs: version
@@ -51,6 +65,7 @@ jobs:
       environment: prod
       image_tag: ${{ needs.version.outputs.version }}
       extra_tag: prod
+      promote_from: ${{ needs.version.outputs.promote_from }}
 
   tag:
     name: Tag & GitHub release

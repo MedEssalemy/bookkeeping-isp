@@ -119,7 +119,7 @@ function invoiceRows(inv: Invoice): string[][] {
  * "respects active filters").
  */
 export async function exportDocuments(module: DocModule, ids: string[], filename: string): Promise<number> {
-  let headers: string[] = []
+  let headers: string[]
   const rows: string[][] = []
 
   if (module === 'proposals') {

@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.models import Invoice
+from app.rich_text import clean_rich_text
 from app.security import get_current_user, require_write_access
 from app.services import documents as docs
 
@@ -127,7 +128,7 @@ def _apply_payload(db: Session, inv: Invoice, data: InvoicePayload) -> None:
     inv.proposal_id = docs.parse_id(data.proposal_id)
     inv.ship_date = docs.parse_date(data.ship_date)
     inv.payments_credits = data.payments_credits or 0
-    inv.notes = data.notes or None
+    inv.notes = clean_rich_text(data.notes)
     inv.linked_client_po_id = docs.parse_id(data.linked_client_po_id)
     inv.linked_owner_invoice_id = docs.parse_id(data.linked_owner_invoice_id)
     docs.apply_totals(inv, docs.calc_standard_items(data.line_items), data.taxable, data.tax_rate)

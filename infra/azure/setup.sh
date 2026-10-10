@@ -9,7 +9,7 @@
 #   resource group, Key Vault (RBAC) holding the app secrets, user-assigned
 #   managed identity (reads Key Vault, pulls from ACR), Azure Container Registry,
 #   PostgreSQL Flexible Server + database, Container Apps environment,
-#   backend app (internal ingress) + frontend app (public ingress),
+#   one app (public ingress) serving the API and the built Vue UI,
 #   and an Entra app with a GitHub OIDC federated credential for deployments.
 # Prints the GitHub environment variables to set at the end.
 #
@@ -40,8 +40,7 @@ PG_ADMIN="bkadmin"
 PG_DB="erd_db"
 IDENTITY="id-$PREFIX-$ENV_NAME"
 CAE="cae-$PREFIX-$ENV_NAME"
-API="ca-$PREFIX-$ENV_NAME-api"
-WEB="ca-$PREFIX-$ENV_NAME-web"
+APP="ca-$PREFIX-$ENV_NAME"
 GH_APP="gh-$PREFIX-$ENV_NAME-deploy"
 # Public placeholder until the first pipeline run replaces it.
 PLACEHOLDER="mcr.microsoft.com/k8se/quickstart:latest"
@@ -121,33 +120,35 @@ if ! exists az containerapp env show -n "$CAE" -g "$RG"; then
   az containerapp env create -n "$CAE" -g "$RG" -l "$LOCATION" -o none
 fi
 
-step "Backend app $API (internal ingress)"
-if ! exists az containerapp show -n "$API" -g "$RG"; then
-  az containerapp create -n "$API" -g "$RG" --environment "$CAE" \
-    --image "$PLACEHOLDER" --target-port 8000 --ingress internal \
+step "App $APP (public ingress)"
+# Scale to zero: within the free monthly grant at this usage; the first request
+# after an idle period waits for a cold start. Max 1 replica keeps start.sh's
+# migrations from running twice at once.
+if ! exists az containerapp show -n "$APP" -g "$RG"; then
+  az containerapp create -n "$APP" -g "$RG" --environment "$CAE" \
+    --image "$PLACEHOLDER" --target-port 8000 --ingress external \
     --user-assigned "$ID_RES" --registry-server "$ACR.azurecr.io" --registry-identity "$ID_RES" \
-    --min-replicas 1 --max-replicas 2 --cpu 0.5 --memory 1.0Gi -o none
+    --min-replicas 0 --max-replicas 1 --cpu 0.5 --memory 1.0Gi -o none
 fi
 # Secrets are Key Vault references resolved by the managed identity — the
 # values never live in the Container App or in GitHub.
-az containerapp secret set -n "$API" -g "$RG" -o none --secrets \
+az containerapp secret set -n "$APP" -g "$RG" -o none --secrets \
   "pg-password=keyvaultref:$KV_URI/secrets/pg-password,identityref:$ID_RES" \
   "jwt-secret-key=keyvaultref:$KV_URI/secrets/jwt-secret-key,identityref:$ID_RES"
-az containerapp update -n "$API" -g "$RG" -o none --set-env-vars \
+az containerapp update -n "$APP" -g "$RG" -o none --set-env-vars \
   "POSTGRES_HOST=$PG_HOST" "POSTGRES_PORT=5432" "POSTGRES_DB=$PG_DB" \
   "POSTGRES_USER=$PG_ADMIN" "POSTGRES_SSLMODE=require" \
   "POSTGRES_PASSWORD=secretref:pg-password" "JWT_SECRET_KEY=secretref:jwt-secret-key"
-API_FQDN="$(az containerapp show -n "$API" -g "$RG" --query properties.configuration.ingress.fqdn -o tsv)"
-
-step "Frontend app $WEB (public ingress)"
-if ! exists az containerapp show -n "$WEB" -g "$RG"; then
-  az containerapp create -n "$WEB" -g "$RG" --environment "$CAE" \
-    --image "$PLACEHOLDER" --target-port 80 --ingress external \
-    --user-assigned "$ID_RES" --registry-server "$ACR.azurecr.io" --registry-identity "$ID_RES" \
-    --min-replicas 1 --max-replicas 2 --cpu 0.25 --memory 0.5Gi -o none
-fi
-az containerapp update -n "$WEB" -g "$RG" -o none --set-env-vars "BACKEND_URL=https://$API_FQDN"
-WEB_FQDN="$(az containerapp show -n "$WEB" -g "$RG" --query properties.configuration.ingress.fqdn -o tsv)"
+# Health probes on /health instead of the default TCP check on the port.
+# Startup allows ~100 s for migrations + seeding; liveness restarts a hung
+# process; readiness keeps traffic off a replica that stops answering.
+PROBE='"httpGet":{"path":"/health","port":8000}'
+APP_RES_ID="$(az containerapp show -n "$APP" -g "$RG" --query id -o tsv)"
+az resource update --ids "$APP_RES_ID" -o none --set "properties.template.containers[0].probes=[
+  {\"type\":\"Startup\",$PROBE,\"initialDelaySeconds\":5,\"periodSeconds\":10,\"failureThreshold\":10},
+  {\"type\":\"Liveness\",$PROBE,\"periodSeconds\":30,\"failureThreshold\":3},
+  {\"type\":\"Readiness\",$PROBE,\"periodSeconds\":10,\"failureThreshold\":3}]"
+APP_FQDN="$(az containerapp show -n "$APP" -g "$RG" --query properties.configuration.ingress.fqdn -o tsv)"
 
 step "GitHub OIDC deploy identity $GH_APP"
 APP_ID="$(az ad app list --display-name "$GH_APP" --query '[0].appId' -o tsv)"
@@ -174,7 +175,7 @@ cat <<EOF
 ============================================================
  $ENV_NAME is provisioned.
 
- App URL (after the first deploy):  https://$WEB_FQDN
+ App URL (after the first deploy):  https://$APP_FQDN
 
  In GitHub: Settings -> Environments -> "$ENV_NAME" -> Environment variables
    AZURE_CLIENT_ID        $APP_ID
@@ -182,12 +183,11 @@ cat <<EOF
    AZURE_SUBSCRIPTION_ID  $SUB_ID
    AZURE_RESOURCE_GROUP   $RG
    AZURE_ACR_NAME         $ACR
-   AZURE_BACKEND_APP      $API
-   AZURE_FRONTEND_APP     $WEB
+   AZURE_APP              $APP
 
  Secrets live in Key Vault $KV (pg-password, jwt-secret-key).
  Create the first login after the first deploy:
-   az containerapp exec -g $RG -n $API --command \\
+   az containerapp exec -g $RG -n $APP --command \\
      "python scripts/create_user.py --email you@company.com --password '<strong-password>' --full-name 'Your Name' --role admin"
 ============================================================
 EOF

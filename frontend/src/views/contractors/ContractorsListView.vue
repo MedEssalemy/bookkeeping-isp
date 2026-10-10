@@ -324,7 +324,6 @@ async function handleImportFile(e: Event) {
     importModalOpen.value = true
   } catch (err) {
     showBanner(`Failed to read "${file.name}". Is it a valid CSV or Excel file?`, 'error')
-    // eslint-disable-next-line no-console
     console.error('Contractor import parse error', err)
   }
 }

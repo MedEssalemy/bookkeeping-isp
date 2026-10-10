@@ -63,21 +63,21 @@ def main():
     seeded = []
     try:
         if _list_empty(db, "job_codes"):
-            db.add_all(ConfigListItem(list_name="job_codes", label=l, sort_order=i) for i, l in enumerate(JOB_CODES))
+            db.add_all(ConfigListItem(list_name="job_codes", label=label, sort_order=i) for i, label in enumerate(JOB_CODES))
             seeded.append("job_codes")
         if _list_empty(db, "payment_terms"):
             db.add_all(
-                ConfigListItem(list_name="payment_terms", label=l, delay_days=d, sort_order=i)
-                for i, (l, d) in enumerate(PAYMENT_TERMS)
+                ConfigListItem(list_name="payment_terms", label=label, delay_days=d, sort_order=i)
+                for i, (label, d) in enumerate(PAYMENT_TERMS)
             )
             seeded.append("payment_terms")
         if _list_empty(db, "references"):
-            db.add_all(ConfigListItem(list_name="references", label=l, sort_order=i) for i, l in enumerate(REFERENCES))
+            db.add_all(ConfigListItem(list_name="references", label=label, sort_order=i) for i, label in enumerate(REFERENCES))
             seeded.append("references")
         if _list_empty(db, "mp_destinations"):
             db.add_all(
-                ConfigListItem(list_name="mp_destinations", label=l, physical_address=a, city=c, state=s, sort_order=i)
-                for i, (l, a, c, s) in enumerate(MP_DESTINATIONS)
+                ConfigListItem(list_name="mp_destinations", label=label, physical_address=a, city=c, state=s, sort_order=i)
+                for i, (label, a, c, s) in enumerate(MP_DESTINATIONS)
             )
             seeded.append("mp_destinations")
         if _table_empty(db, TaxRate):

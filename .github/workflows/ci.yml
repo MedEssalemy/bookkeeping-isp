@@ -31,7 +31,7 @@ jobs:
           fi
 
   backend:
-    name: Backend tests
+    name: Backend lint & tests
     runs-on: ubuntu-latest
     services:
       postgres:
@@ -60,12 +60,13 @@ jobs:
           cache: pip
           cache-dependency-path: backend/requirements*.txt
       - run: pip install -r requirements-dev.txt
+      - run: ruff check .
       - name: Migrations apply cleanly and match the models
         run: alembic upgrade head && alembic check
       - run: pytest -q
 
   frontend:
-    name: Frontend type-check & build
+    name: Frontend lint, tests & build
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -78,26 +79,34 @@ jobs:
           cache: npm
           cache-dependency-path: frontend/package-lock.json
       - run: npm ci --legacy-peer-deps
+      - run: npm run lint
+      - run: npm test
       - run: npm run build
 
   images:
-    name: Docker images build
+    name: Docker image build & scan
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: docker/setup-buildx-action@v3
-      - name: Backend image
+      - name: App image
         uses: docker/build-push-action@v6
         with:
-          context: backend
+          context: .
           push: false
-          cache-from: type=gha,scope=backend
-          cache-to: type=gha,mode=max,scope=backend
-      - name: Frontend image
-        uses: docker/build-push-action@v6
+          load: true
+          tags: bookkeeping:ci
+          cache-from: type=gha,scope=app
+          cache-to: type=gha,mode=max,scope=app
+      # Fails on HIGH/CRITICAL vulnerabilities that already have a fix (bump the
+      # base image or the package; Dependabot usually opens that PR).
+      # Pinned to a commit, not a tag: this action's tags were hijacked in
+      # March 2026 (CVE-2026-33634); v0.35.0 and Trivy v0.69.3 are known-good.
+      - name: Vulnerability scan
+        uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1 # v0.35.0
         with:
-          context: frontend
-          file: frontend/Dockerfile.prod
-          push: false
-          cache-from: type=gha,scope=frontend
-          cache-to: type=gha,mode=max,scope=frontend
+          image-ref: bookkeeping:ci
+          version: v0.69.3
+          severity: CRITICAL,HIGH
+          ignore-unfixed: true
+          exit-code: "1"

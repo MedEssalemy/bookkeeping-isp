@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.models import Proposal
+from app.rich_text import clean_rich_text
 from app.security import get_current_user, require_write_access
 from app.services import documents as docs
 
@@ -113,8 +114,8 @@ def _apply_payload(db: Session, p: Proposal, data: ProposalPayload) -> None:
     p.proposal_valid_till = docs.parse_date(data.proposal_valid_till)
     p.linked_client_po_id = docs.parse_id(data.linked_client_po_id)
     p.linked_owner_invoice_id = docs.parse_id(data.linked_owner_invoice_id)
-    p.notes = data.notes or None
-    p.services_provided = data.services_provided or None
+    p.notes = clean_rich_text(data.notes)
+    p.services_provided = clean_rich_text(data.services_provided)
     if p.type == "MP":
         items = docs.calc_mp_items(data.line_items)
         docs.apply_totals(p, items, data.taxable, data.tax_rate, amount_key="estimated_fee")
