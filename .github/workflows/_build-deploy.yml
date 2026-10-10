@@ -49,7 +49,7 @@ jobs:
     outputs:
       image: ${{ steps.names.outputs.image }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Image name (GHCR requires lowercase)
         id: names
