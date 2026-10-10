@@ -3,7 +3,7 @@
 # Local development keeps using docker-compose with backend/ and frontend/
 # Dockerfiles (Vite dev server + uvicorn --reload).
 
-FROM node:20-slim AS frontend
+FROM node:24-slim AS frontend
 WORKDIR /src
 COPY frontend/package*.json ./
 # --legacy-peer-deps: pre-existing Tiptap peer-dependency conflict (see frontend/Dockerfile)
