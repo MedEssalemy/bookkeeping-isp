@@ -12,7 +12,7 @@ COPY frontend/ ./
 # Type-checking runs in CI; the image only needs the bundle.
 RUN npx vite build
 
-FROM python:3.12-slim
+FROM python:3.14-slim
 ARG APP_VERSION=dev
 ENV APP_VERSION=$APP_VERSION \
     STATIC_DIR=/app/static \
